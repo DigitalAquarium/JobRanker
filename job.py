@@ -1,11 +1,11 @@
 class Job:
-    term_blacklist = ["senior", "associate", "lead", "head of","principal","director"]
-    term_whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security"]
+    term_blacklist = ["senior", "associate", "lead", "head of","principal","director","mandarin","phd"]
+    term_whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security","cybersecurity"]
     terms_dict = {
         20: ["graduate scheme", "robotics", "robot"],
         10: ["python", "java", "graduate", "entry level", "entry-level", "ros", "django", "team", "teamwork",
              "automotive", "transport", "gaming", "game", "london", "reading", "bracknell", "slough", "maidenhead",
-             "cyber security"],
+             "cyber security","cybersecurity"],
         5: ["junior", "c++", "javascript", "2022", "cyber"],
         2: ["full stack", "2:1", "engineer"],
         1: ["software", "developer", "haskell", "html", "css", "sql", "git", "version control", "linux", "windows",
@@ -21,15 +21,17 @@ class Job:
     description = ""
     site = ""
     url = ""
+    location = ""
     rank = 0
     valid = None
 
-    def __init__(self, title, description, company="", site="", url=""):
+    def __init__(self, title, description, company="", site="", url="",location=""):
         self.title = title
         self.description = description
         self.company = company
         self.site = site
         self.url = url
+        self.location = location
         if self.is_valid():
             self.get_rank()
 
