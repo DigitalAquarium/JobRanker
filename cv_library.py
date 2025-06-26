@@ -41,6 +41,7 @@ def run_cv_library():
         driver.get(link)
         time.sleep(1)
         title = driver.find_element(By.TAG_NAME, "h1").text
+        location = driver.find_element(By.CSS_SELECTOR, "dd[data-jd-location]").text
         try:
             company = driver.find_element(By.CSS_SELECTOR, "span[data-jd-company]").text
         except:
@@ -49,6 +50,4 @@ def run_cv_library():
             description = driver.find_element(By.CLASS_NAME, "job__description").text
         except:
             description = driver.find_element(By.CLASS_NAME, "premium-description").text
-        nj = Job(title, description, company=company, url=link, site="CV Library")
-        if nj.is_valid():
-            jobs.add(nj)
+        jobs.add(title, description, company=company, url=link, site="CV Library", location=location)

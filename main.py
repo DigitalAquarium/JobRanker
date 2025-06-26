@@ -3,7 +3,7 @@ from gradcracker import *
 from linkedin import *
 from reed import *
 
-# TODO: Gradcracker, otta?, CV Library, glassdoor, Indeed. GRB??
+# TODO: Welcome to the Jungle? glassdoor, Indeed. GRB??
 
 
 run_reed()
@@ -15,7 +15,7 @@ job_list = list(jobs)
 job_list.sort()
 
 for j in job_list:
-    print(j.title, "-", j.company + ":", j.rank)
+    print(j.title, "-", j.company + ":", j.rank, j.url)
 
 # ScrollOrigin
 while True:

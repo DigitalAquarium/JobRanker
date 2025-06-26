@@ -2,6 +2,7 @@ from common import *
 
 reed_pw = os.getenv("REED_PW")
 
+
 def reed_process_recommendations():
     time.sleep(4)
     recommendations = driver.find_elements(By.CLASS_NAME, "new-recommended-job-block")
@@ -38,9 +39,8 @@ def reed_process_recommendations():
             if i != company_text_split[-1]:
                 company_text += " by "
         title = driver.find_element(By.TAG_NAME, "h1").text
-        new_job = Job(title, description, company=company_text, url=link, site="reed")
-        if new_job.is_valid():
-            jobs.add(new_job)
+        location = driver.find_element(By.CSS_SELECTOR, "li[data-qa='job-location']").text
+        jobs.add(title, description, company=company_text, url=link, site="reed", location=location)
 
 
 def reed_process_page():
@@ -66,9 +66,7 @@ def reed_process_page():
                     company_text += " by "
             url = driver.find_element(By.CSS_SELECTOR, "div[class^='header_newTabIcon_wrapper']").find_element(
                 By.TAG_NAME, "a").get_attribute("href")
-            new_job = Job(title, description, company=company_text, url=url, site="reed")
-            if new_job.is_valid():
-                jobs.add(new_job)
+            jobs.add(title, description, company=company_text, url=url, site="reed")
 
             driver.find_element(By.CSS_SELECTOR, "div[class^='header_closeIcon']").click()
             time.sleep(0.2)

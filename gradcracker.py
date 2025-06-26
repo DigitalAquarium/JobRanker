@@ -20,16 +20,14 @@ def run_gradcracker():
         driver.get(link)
         time.sleep(3)
         title = driver.find_element(By.TAG_NAME, "h1").text
-        company = driver.find_element(By.XPATH, "/html/body/div[4]/div/div[3]/ul/li[2]/a").text[-4:]
+        company = driver.find_element(By.XPATH, "/html/body/div[4]/div/div[3]/ul/li[2]/a").text[:-4]
         description = driver.find_element(By.CLASS_NAME, "job-description").text
         sidebar = driver.find_element(By.XPATH, "/html/body/div[4]/div/div[5]/div[2]/div[1]/div[1]/ul")
         location = ""
         for li in sidebar.find_elements(By.TAG_NAME, "li"):
             if "Location" in li.text:
                 location = li.text.replace("Location\n", "")
-        j = Job(title, description, company=company, url=link, location=location, site="Gradcracker")
-        if j.is_valid():
-            jobs.add(j)
+        jobs.add(title, description, company=company, url=link, location=location, site="Gradcracker")
 
 
 run_gradcracker()

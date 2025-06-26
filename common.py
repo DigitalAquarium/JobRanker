@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 driver = webdriver.Chrome()
 actions = ActionChains(driver)
 
-jobs = set()
+jobs = JobManager()
 
 
 load_dotenv()

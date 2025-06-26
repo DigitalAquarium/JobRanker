@@ -1,11 +1,135 @@
+import sqlite3
+from gemini import prompt
+from maps import get_distance
+
+con = sqlite3.connect("job_ranker.sqlite3")
+cur = con.cursor()
+if cur.execute("SELECT name FROM sqlite_master").fetchone() is None:
+    cur.execute('''CREATE TABLE location (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT
+                               NOT NULL,
+        name           TEXT    NOT NULL,
+        distance_score INTEGER NOT NULL
+    );''')
+    cur.execute('''
+    CREATE TABLE company (
+        id      INTEGER PRIMARY KEY AUTOINCREMENT
+                        NOT NULL,
+        name    TEXT    NOT NULL,
+        url     TEXT,
+        summary TEXT,
+    );''')
+    cur.execute('''
+    CREATE TABLE job (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT
+                            NOT NULL,
+        title       TEXT    NOT NULL,
+        description TEXT    NOT NULL,
+        site        TEXT,
+        url         TEXT,
+        rank        INTEGER NOT NULL,
+        applied     BOOLEAN DEFAULT (0) 
+                            NOT NULL,
+        dismissed   BOOLEAN NOT NULL
+                            DEFAULT (0),
+        location    INTEGER REFERENCES location (id),
+        company     INTEGER REFERENCES company (id) 
+    );''')
+
+
+class Company:
+    name = ""
+    summary = ""
+    url = ""
+    id = None
+
+    def __init__(self, name):
+        if name == "":
+            self.name = ""
+            self.summary = ""
+            self.url = ""
+        else:
+            self.name = name
+            existing_company = cur.execute("SELECT summary,url,id FROM company WHERE name = (?)", (name,)).fetchone()
+            if existing_company:
+                self.summary = existing_company[0]
+                self.url = existing_company[1]
+                self.id = existing_company[2]
+            else:
+                company_info = prompt(name).split("|")
+                self.summary = company_info[0]
+                try:
+                    self.url = company_info[1].replace(" ", "")
+                except:
+                    company_info = prompt("COMPANY_NAME:\n"+name).split("|")
+                    try:
+                        self.url = company_info[1].replace(" ", "")
+                    except:
+                        self.url = "err"
+                new_id = cur.execute("INSERT INTO company (name,summary,url) VALUES (?,?,?) RETURNING id",
+                                     (self.name, self.summary, self.url)).fetchone()
+                self.id = new_id[0]
+                con.commit()
+
+    def __eq__(self, other):
+        return self.name == other.name
+
+
+class Location:
+    name = ""
+    distance_score = None
+    id = None
+
+    def __init__(self, name):
+        if name == "":
+            self.name = ""
+            self.distance_score = 0
+        else:
+            name = name.lower()
+            existing_location = cur.execute("SELECT distance_score,id FROM location WHERE name = (?)",
+                                            (name,)).fetchone()
+            if existing_location:
+                self.name = name
+                self.distance_score = existing_location[0]
+                self.id = existing_location[1]
+            else:
+                name = prompt(name, prompt_type="location")
+                name = name.lower()
+                self.name = name
+                existing_location = cur.execute("SELECT distance_score,id FROM location WHERE name = (?)",
+                                                (name,)).fetchone()
+                if existing_location:
+                    self.distance_score = existing_location[0]
+                    self.id = existing_location[1]
+                else:
+                    distance = get_distance(name)
+                    if distance > 2.5:
+                        self.distance_score = 0
+                    else:
+                        self.distance_score = round((2.5 - distance) * 40)
+                    new_id = cur.execute("INSERT INTO location (name,distance_score) VALUES (?,?) RETURNING id",
+                                         (self.name, self.distance_score)).fetchone()
+                    self.id = new_id[0]
+                    con.commit()
+
+    def __repr__(self):
+        return self.name
+
+    def __str__(self):
+        return self.name
+
+    def __eq__(self, other):
+        return self.name == other.name
+
+
 class Job:
-    term_blacklist = ["senior", "associate", "lead", "head of","principal","director","mandarin","phd"]
-    term_whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security","cybersecurity"]
+    term_blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "mandarin", "phd"]
+    term_whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security", "cybersecurity"]
     terms_dict = {
         20: ["graduate scheme", "robotics", "robot"],
         10: ["python", "java", "graduate", "entry level", "entry-level", "ros", "django", "team", "teamwork",
-             "automotive", "transport", "gaming", "game", "london", "reading", "bracknell", "slough", "maidenhead",
-             "cyber security","cybersecurity"],
+             "automotive", "transport", "gaming", "game",
+             "cyber security", "cybersecurity"],
         5: ["junior", "c++", "javascript", "2022", "cyber"],
         2: ["full stack", "2:1", "engineer"],
         1: ["software", "developer", "haskell", "html", "css", "sql", "git", "version control", "linux", "windows",
@@ -17,23 +141,30 @@ class Job:
     }
 
     title = ""
-    company = ""
+    company = None
     description = ""
     site = ""
     url = ""
-    location = ""
+    location = None
     rank = 0
     valid = None
+    applied = False
 
-    def __init__(self, title, description, company="", site="", url="",location=""):
+    def __init__(self, title, description, site, url, company, location):
         self.title = title
         self.description = description
-        self.company = company
-        self.site = site
-        self.url = url
-        self.location = location
         if self.is_valid():
+            self.company = Company(company)
+            self.location = Location(location)
+            self.site = site
+            self.url = url
             self.get_rank()
+
+    def set_location(self, loc_string):
+        pass
+
+    def set_company(self, company_string):
+        pass
 
     def get_rank(self):
         rank = 0
@@ -45,12 +176,14 @@ class Job:
                 if term in self.description.lower():
                     rank += score
 
-        if "graduate" not in self.description.lower() and "junior" not in self.description.lower():
+        if "graduate" not in self.description.lower() and "junior" not in self.description.lower() and "entry-level" not in self.description.lower() and "entry level" not in self.description.lower() and "graduate" not in self.title.lower() and self.site not in [
+            "Gradcracker", "GRB"]:
             rank -= 30
 
-        if "software engineer" not in self.description.lower() and "cyber" not in self.description.lower() and "software developer" not in self.description.lower():
+        if "software engineer" not in self.description.lower() and "cyber" not in self.description.lower() and "develop" not in self.description.lower():
             rank -= 50
 
+        rank += round(self.location.distance_score * 0.4)
         self.rank = rank
         return rank
 
@@ -92,7 +225,7 @@ class Job:
         return self.rank <= other.rank
 
     def __hash__(self):
-        hashable_string = self.title + self.company + self.description
+        hashable_string = self.title + self.description
         return hash(hashable_string)
 
     @staticmethod
@@ -104,3 +237,18 @@ class Job:
                 passes = False
                 break
         return passes
+
+
+class JobManager:
+    jobs = set()
+
+    def add(self, title, description, site="", url="", company="", location=""):
+        job = Job(title, description, site, url, company, location)
+        if job.is_valid():
+            db_job = cur.execute("SELECT * FROM job WHERE (title,description) = (?,?)", (title, description)).fetchone()
+            if db_job is None:
+                cur.execute(
+                    "INSERT INTO job (title,description,site,url,company,location,rank) VALUES (?,?,?,?,?,?,?)",
+                    (job.title, job.description, job.site, job.url, job.company.id, job.location.id, job.rank))
+                con.commit()
+            self.jobs.add(job)

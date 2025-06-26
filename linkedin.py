@@ -45,11 +45,12 @@ def linkedin_process_page():
             break
         company = driver.find_element(By.CLASS_NAME, "job-details-jobs-unified-top-card__company-name")
         title = driver.find_element(By.CLASS_NAME, "job-details-jobs-unified-top-card__job-title")
-        description = driver.find_element(By.ID, "job-details")
-        # scaffold-skeleton-container - not loaded
-        new = Job(title.text, description.text, company=company.text, site="LinkedIn", url=driver.current_url)
-        if new.is_valid():
-            jobs.add(new)
+        description = driver.find_element(By.ID, "job-details").text
+        if description[:14] == "About the job\n":
+            description = description[14:]
+
+        location = driver.find_element(By.XPATH,'//*[@id="main"]/div/div[2]/div[2]/div/div[2]/div/div[2]/div[1]/div/div[1]/div/div[1]/div/div[3]/div/span/span[1]').text
+        jobs.add(title.text, description, company=company.text, site="LinkedIn", url=driver.current_url,location=location)
 
     linkedin_scroll(jobs_list_ul, 50)
     time.sleep(4)
