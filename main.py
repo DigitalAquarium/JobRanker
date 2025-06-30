@@ -11,7 +11,7 @@ run_cv_library()
 run_gradcracker()
 run_linkedin()
 
-job_list = list(jobs)
+job_list = list(jobs.jobs)
 job_list.sort()
 
 for j in job_list:

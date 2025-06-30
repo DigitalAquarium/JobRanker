@@ -15,6 +15,9 @@ gmaps = googlemaps.Client(key=os.getenv("MAPS_API"))
 
 def get_distance(location_name):
     geocode = gmaps.geocode(location_name)
-    crow_flies = sqrt((geocode[0]["geometry"]["location"]["lat"] - origin_point[0]) ** 2 + (
-                geocode[0]["geometry"]["location"]["lng"] - origin_point[1]) ** 2)
+    try:
+        crow_flies = sqrt((geocode[0]["geometry"]["location"]["lat"] - origin_point[0]) ** 2 + (
+                    geocode[0]["geometry"]["location"]["lng"] - origin_point[1]) ** 2)
+    except:
+        return -1
     return crow_flies

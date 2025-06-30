@@ -123,7 +123,7 @@ class Location:
 
 
 class Job:
-    term_blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "mandarin", "phd"]
+    term_blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "mandarin", "phd","vp"]
     term_whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security", "cybersecurity"]
     terms_dict = {
         20: ["graduate scheme", "robotics", "robot"],

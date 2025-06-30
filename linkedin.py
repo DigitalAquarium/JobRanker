@@ -9,11 +9,14 @@ def set_up_linkedin():
     driver.get("https://www.linkedin.com/jobs/")
     time.sleep(4)
     actions = ActionChains(driver)
-    searchbox = driver.find_element(By.ID, "jobs-search-box-keyword-id-ember30")
-    searchbox.send_keys(Keys.CONTROL + Keys.SUBTRACT)
-    searchbox.send_keys("graduate software engineer")
-    searchbox.send_keys(Keys.ENTER)
+
+    recommended = driver.find_element(By.CLASS_NAME,'discovery-templates-jobs-home-vertical-list__footer')
+    actions.move_to_element(recommended).click().perform()
     time.sleep(4)
+    linkedin_process_page()
+
+    driver.get("https://www.linkedin.com/jobs/search/?distance=25&geoId=101165590&keywords=graduate%20software%20engineer")
+    time.sleep(10)
     return driver, actions
 
 
@@ -48,13 +51,25 @@ def linkedin_process_page():
         description = driver.find_element(By.ID, "job-details").text
         if description[:14] == "About the job\n":
             description = description[14:]
+        location = None
+        try:
+            location = driver.find_element(By.CSS_SELECTOR,'div[class="job-details-jobs-unified-top-card__primary-description-container"] div span span:nth-child(1)').text
+        except:
+            time.sleep(2)
+            try:
+                location = driver.find_element(By.CSS_SELECTOR,
+                                               'div[class="job-details-jobs-unified-top-card__primary-description-container"] div span span:nth-child(1)').text
+            except:
+                location = driver.find_element(By.XPATH,'/html/body/div[6]/div[3]/div[4]/div/div/main/div/div[2]/div[2]/div/div[2]/div/div[2]/div[1]/div/div[1]/div/div[1]/div/div[3]/div/span/span[1]').text
 
-        location = driver.find_element(By.XPATH,'//*[@id="main"]/div/div[2]/div[2]/div/div[2]/div/div[2]/div[1]/div/div[1]/div/div[1]/div/div[3]/div/span/span[1]').text
         jobs.add(title.text, description, company=company.text, site="LinkedIn", url=driver.current_url,location=location)
 
     linkedin_scroll(jobs_list_ul, 50)
-    time.sleep(4)
-    driver.find_element(By.CLASS_NAME, "artdeco-button--icon-right").click()
+    time.sleep(1)
+    try:
+        driver.find_element(By.CLASS_NAME, "artdeco-button--icon-right").click()
+    except:
+        pass
     time.sleep(4)
     # driver.refresh()
 

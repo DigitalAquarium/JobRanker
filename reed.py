@@ -66,7 +66,8 @@ def reed_process_page():
                     company_text += " by "
             url = driver.find_element(By.CSS_SELECTOR, "div[class^='header_newTabIcon_wrapper']").find_element(
                 By.TAG_NAME, "a").get_attribute("href")
-            jobs.add(title, description, company=company_text, url=url, site="reed")
+            location = driver.find_element(By.CSS_SELECTOR, "li[data-qa='job-location']").text
+            jobs.add(title, description, company=company_text, url=url, site="reed",location=location)
 
             driver.find_element(By.CSS_SELECTOR, "div[class^='header_closeIcon']").click()
             time.sleep(0.2)

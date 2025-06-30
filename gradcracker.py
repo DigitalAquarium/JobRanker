@@ -29,5 +29,3 @@ def run_gradcracker():
                 location = li.text.replace("Location\n", "")
         jobs.add(title, description, company=company, url=link, location=location, site="Gradcracker")
 
-
-run_gradcracker()
