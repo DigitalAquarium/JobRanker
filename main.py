@@ -2,10 +2,11 @@ from cv_library import *
 from gradcracker import *
 from linkedin import *
 from reed import *
+from  otta import *
 
 # TODO: Welcome to the Jungle? glassdoor, Indeed. GRB??
 
-
+run_otta()
 run_reed()
 run_cv_library()
 run_gradcracker()

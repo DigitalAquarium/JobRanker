@@ -40,7 +40,7 @@ def reed_process_recommendations():
                 company_text += " by "
         title = driver.find_element(By.TAG_NAME, "h1").text
         location = driver.find_element(By.CSS_SELECTOR, "li[data-qa='job-location']").text
-        jobs.add(title, description, company=company_text, url=link, site="reed", location=location)
+        jobs.add(title, description, company=company_text, url=link, site="Reed", location=location)
 
 
 def reed_process_page():
@@ -67,7 +67,7 @@ def reed_process_page():
             url = driver.find_element(By.CSS_SELECTOR, "div[class^='header_newTabIcon_wrapper']").find_element(
                 By.TAG_NAME, "a").get_attribute("href")
             location = driver.find_element(By.CSS_SELECTOR, "li[data-qa='job-location']").text
-            jobs.add(title, description, company=company_text, url=url, site="reed",location=location)
+            jobs.add(title, description, company=company_text, url=url, site="Reed",location=location)
 
             driver.find_element(By.CSS_SELECTOR, "div[class^='header_closeIcon']").click()
             time.sleep(0.2)
