@@ -2,7 +2,7 @@ from cv_library import *
 from gradcracker import *
 from linkedin import *
 from reed import *
-from  otta import *
+from otta import *
 
 # TODO: Welcome to the Jungle? glassdoor, Indeed. GRB??
 

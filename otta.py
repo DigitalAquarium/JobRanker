@@ -17,21 +17,19 @@ def run_otta():
         time.sleep(1)
         try:
             web_title = driver.find_element(By.TAG_NAME, "h1").text
+            web_title = web_title.split(", ")
+            company = web_title[-1]
+            title = ""
+            for i in web_title[:-1]:
+                title += i + ", "
+            title = title[:-2]
+
+            description = driver.find_element(By.XPATH,
+                                              '//*[@id="root"]/div[1]/div/div/div[1]/div/div[2]/div/div[2]/div/div[1]/div[1]/div').text
+            description = description.split("\nSalary benchmarks")[0]
+            location = driver.find_element(By.CSS_SELECTOR, "div[data-testid='job-location-tag']").text
         except:
-            #There are no more recommendations
+            # There are no more recommendations
             break
-        web_title = web_title.split(", ")
-        company = web_title[-1]
-        title = ""
-        for i in web_title[:-1]:
-            title += i + ", "
-        title = title[:-2]
-        description = driver.find_element(By.XPATH,
-                                          '//*[@id="root"]/div[1]/div/div/div[1]/div/div[2]/div/div[2]/div/div[1]/div[1]/div').text
-        description = description.split("\nSalary benchmarks")[0]
-        location = driver.find_element(By.CSS_SELECTOR, "div[data-testid='job-location-tag']").text
-        print(title, company, location)
-        print(driver.current_url)
-        print(description)
         jobs.add(title, description, location=location, company=company, url=driver.current_url, site="Otta")
         actions.key_down(Keys.RIGHT).key_up(Keys.RIGHT).perform()

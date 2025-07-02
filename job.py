@@ -38,12 +38,23 @@ if cur.execute("SELECT name FROM sqlite_master").fetchone() is None:
 
 
 class Company:
+    RECRUITERS = ["efinancialcareers", "hunter bond"]
     name = ""
     summary = ""
     url = ""
     id = None
 
+    def __new__(cls, name):
+        # Prevent listings from recruitment companies from other platforms. instead search their platform directly.
+        # This should make it easier to prevent duplicate entries and also make it clearer which company the role is
+        # actually for.
+        if name.lower() in Company.RECRUITERS:
+            return None
+        else:
+            return super().__new__(cls)
+
     def __init__(self, name):
+
         if name == "":
             self.name = ""
             self.summary = ""
@@ -61,7 +72,7 @@ class Company:
                 try:
                     self.url = company_info[1].replace(" ", "")
                 except:
-                    company_info = prompt("COMPANY_NAME:\n"+name).split("|")
+                    company_info = prompt("COMPANY_NAME:\n" + name).split("|")
                     try:
                         self.url = company_info[1].replace(" ", "")
                     except:
@@ -103,6 +114,9 @@ class Location:
                     self.id = existing_location[1]
                 else:
                     distance = get_distance(name)
+                    if distance > 3:
+                        # Location is not in the uk, or nearby european countries.
+                        self.distance_score = -50
                     if distance > 2.5:
                         self.distance_score = 0
                     else:
@@ -123,21 +137,23 @@ class Location:
 
 
 class Job:
-    term_blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "mandarin", "phd","vp"]
+    term_blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "mandarin", "phd", "vp ",
+                      "manager", " vp", "mid level"]
     term_whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security", "cybersecurity"]
     terms_dict = {
         20: ["graduate scheme", "robotics", "robot"],
-        10: ["python", "java", "graduate", "entry level", "entry-level", "ros", "django", "team", "teamwork",
-             "automotive", "transport", "gaming", "game",
-             "cyber security", "cybersecurity"],
+        10: ["python", "java", "graduate", "entry level", "entry-level", " ros ", "django", "team", "teamwork",
+             "remote",
+             "automotive", "transport", "gaming", "game", "trains",
+             "cyber security", "cybersecurity", "mentor"],
         5: ["junior", "c++", "javascript", "2022", "cyber"],
-        2: ["full stack", "2:1", "engineer"],
+        2: ["full stack", "2:1", "engineer", "penetration testing"],
         1: ["software", "developer", "haskell", "html", "css", "sql", "git", "version control", "linux", "windows",
-            "nginx", "ghidra", "php", "matlab", "ida", "latex", " c ", "llm"],
+            "nginx", "ghidra", "php", "matlab", "ida", "latex", " c ", "llm", "train", "progression"],
         -2: ["1 year of experience"],
         -5: ["finance"],
         -20: ["2026", "msc", "meng", "3 years of experience"],
-        -30: ["gambling"]
+        -30: ["gambling", "3+ years", "4+ years", "5+ years"]
     }
 
     title = ""
@@ -149,6 +165,7 @@ class Job:
     rank = 0
     valid = None
     applied = False
+    ignored = False
 
     def __init__(self, title, description, site, url, company, location):
         self.title = title
@@ -199,6 +216,9 @@ class Job:
                 if term in self.title.lower():
                     valid = False
                     break
+
+            if self.company is None:
+                valid = False
             self.valid = valid
         return self.valid
 
