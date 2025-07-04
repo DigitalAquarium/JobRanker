@@ -1,5 +1,6 @@
 import os
 import time
+import asyncio
 
 from job import *
 from selenium import webdriver
@@ -11,11 +12,7 @@ from selenium.common import NoSuchElementException
 
 from dotenv import load_dotenv
 
-driver = webdriver.Chrome()
-actions = ActionChains(driver)
-
 jobs = JobManager()
-
 
 load_dotenv()
 

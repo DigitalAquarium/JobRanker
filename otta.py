@@ -1,20 +1,23 @@
 from common import *
 
+driver = webdriver.Chrome()
+actions = ActionChains(driver)
 
-def run_otta():
+
+async def run_otta():
     driver.get("https://app.welcometothejungle.com/")
     driver.find_element(By.ID, "email").send_keys(email)
     driver.find_element(By.ID, "password").send_keys(os.getenv("OTTA_PW"), Keys.ENTER)
-    time.sleep(3)
+    await asyncio.sleep(3)
     driver.get("https://app.welcometothejungle.com/jobs")
-    time.sleep(0.7)
+    await asyncio.sleep(0.7)
     try:
         driver.find_element(By.CSS_SELECTOR, 'div[data-testid="modal-remove-button"]').click()
     except:
         pass
 
     while True:
-        time.sleep(1)
+        await asyncio.sleep(1)
         try:
             web_title = driver.find_element(By.TAG_NAME, "h1").text
             web_title = web_title.split(", ")
@@ -31,5 +34,5 @@ def run_otta():
         except:
             # There are no more recommendations
             break
-        jobs.add(title, description, location=location, company=company, url=driver.current_url, site="Otta")
+        await jobs.add(title, description, location=location, company=company, url=driver.current_url, site="Otta")
         actions.key_down(Keys.RIGHT).key_up(Keys.RIGHT).perform()

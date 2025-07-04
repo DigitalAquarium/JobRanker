@@ -2,9 +2,12 @@ from common import *
 
 reed_pw = os.getenv("REED_PW")
 
+driver = webdriver.Chrome()
+actions = ActionChains(driver)
 
-def reed_process_recommendations():
-    time.sleep(4)
+
+async def reed_process_recommendations():
+    await asyncio.sleep(4)
     recommendations = driver.find_elements(By.CLASS_NAME, "new-recommended-job-block")
     next_button = driver.find_element(By.CLASS_NAME, "swiper-button-next")
     flag_more_recs = True
@@ -19,14 +22,14 @@ def reed_process_recommendations():
                         rec_links.append(href)
         try:
             next_button.click()
-            time.sleep(0.2)
+            await asyncio.sleep(0.2)
             next_button.click()
         except:
             flag_more_recs = False
 
     for link in rec_links:
         driver.get(link)
-        time.sleep(2)
+        await asyncio.sleep(2)
         description = driver.find_element(By.CSS_SELECTOR, "div[class^='job-details_jobDescription']").text
         company = driver.find_element(By.CSS_SELECTOR, "div[class^='job-title-block_postedBy']")
 
@@ -40,11 +43,11 @@ def reed_process_recommendations():
                 company_text += " by "
         title = driver.find_element(By.TAG_NAME, "h1").text
         location = driver.find_element(By.CSS_SELECTOR, "li[data-qa='job-location']").text
-        jobs.add(title, description, company=company_text, url=link, site="Reed", location=location)
+        await jobs.add(title, description, company=company_text, url=link, site="Reed", location=location)
 
 
-def reed_process_page():
-    time.sleep(4)
+async def reed_process_page():
+    await asyncio.sleep(4)
     global jobs
     main_div = driver.find_element(By.TAG_NAME, "main")
     job_divs = main_div.find_elements(By.CSS_SELECTOR, "[data-qa='job-card']")
@@ -52,7 +55,7 @@ def reed_process_page():
         title = job.find_element(By.TAG_NAME, "h2").text
         if Job.test_blacklist(title):
             actions.move_to_element(job).click().perform()
-            time.sleep(2)
+            await asyncio.sleep(2)
             description = driver.find_element(By.CSS_SELECTOR, "div[class^='job-details-drawer-modal_jobSection']").text
             company = driver.find_element(By.CSS_SELECTOR, "div[class^='job-title-block_postedBy']")
 
@@ -67,10 +70,10 @@ def reed_process_page():
             url = driver.find_element(By.CSS_SELECTOR, "div[class^='header_newTabIcon_wrapper']").find_element(
                 By.TAG_NAME, "a").get_attribute("href")
             location = driver.find_element(By.CSS_SELECTOR, "li[data-qa='job-location']").text
-            jobs.add(title, description, company=company_text, url=url, site="Reed",location=location)
+            await jobs.add(title, description, company=company_text, url=url, site="Reed", location=location)
 
             driver.find_element(By.CSS_SELECTOR, "div[class^='header_closeIcon']").click()
-            time.sleep(0.2)
+            await asyncio.sleep(0.2)
     if "pageno=" in driver.current_url:
         num = int(driver.current_url[-2:].replace("=", ""))
         num = str(num + 1)
@@ -82,7 +85,7 @@ def reed_process_page():
             driver.get(driver.current_url + "?pageno=2")
 
 
-def run_reed():
+async def run_reed():
     global jobs
     driver.get("https://secure.reed.co.uk/login")
 
@@ -101,9 +104,9 @@ def run_reed():
             driver.find_element(By.ID, "onetrust-reject-all-handler").click()
             break
         except:
-            time.sleep(1)
+            await asyncio.sleep(1)
 
-    reed_process_recommendations()
+    await reed_process_recommendations()
     textbox = driver.find_element(By.NAME, "keywords")
     textbox.click()
     textbox.send_keys("graduate software engineer")
@@ -114,4 +117,4 @@ def run_reed():
         if "An error has occurred." in h1.text:
             break
         else:
-            reed_process_page()
+            await reed_process_page()

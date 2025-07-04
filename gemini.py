@@ -1,6 +1,7 @@
+import asyncio
 from os import environ
 from openai import OpenAI
-from time import time, sleep
+from time import time
 
 OPENAI_KEY = environ["GEMINI_API_KEY"]
 
@@ -8,12 +9,15 @@ client = OpenAI(api_key=OPENAI_KEY, base_url="https://generativelanguage.googlea
 
 last_polled = time()
 
+timing_lock = asyncio.Lock()
 
-def prompt(content, prompt_type="company"):
+
+async def prompt(content, prompt_type="company"):
     global last_polled
-    if time() - last_polled < 4:
-        sleep((time() - last_polled) + 0.1)
-    last_polled = time()
+    async with timing_lock:
+        if time() - last_polled < 4:
+            await asyncio.sleep((time() - last_polled) + 0.1)
+        last_polled = time()
     match prompt_type:
         case "company":
             dev_prompt = "You are an assistant for a user who is currently searching for work. Your role is to take a " \

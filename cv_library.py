@@ -1,7 +1,10 @@
 from common import *
 
+driver = webdriver.Chrome()
+actions = ActionChains(driver)
 
-def run_cv_library():
+
+async def run_cv_library():
     driver.get("https://www.cv-library.co.uk/candidate/login")
     while True:
         try:
@@ -9,12 +12,12 @@ def run_cv_library():
                                                                                                            "cf_consent-buttons__reject-all").click()
             break
         except:
-            time.sleep(1)
-    time.sleep(1)
+            await asyncio.sleep(1)
+    await asyncio.sleep(1)
     driver.find_element(By.ID, "cand_email").send_keys(email)
     driver.find_element(By.ID, "cand_password").send_keys(os.getenv("CV_LIB_PW"))
     driver.find_element(By.CSS_SELECTOR, "input[type='submit']").click()
-    time.sleep(2)
+    await asyncio.sleep(2)
     links = []
     for job in driver.find_elements(By.CLASS_NAME, "job-match"):
         if Job.test_blacklist(job.find_element(By.TAG_NAME, "h3").text):
@@ -25,7 +28,7 @@ def run_cv_library():
 
     flag = True
     while flag:
-        time.sleep(2)
+        await asyncio.sleep(2)
         for job in driver.find_elements(By.CLASS_NAME, "results__item"):
             header = job.find_element(By.TAG_NAME, "h2")
             if Job.test_blacklist(header.text):
@@ -39,7 +42,7 @@ def run_cv_library():
 
     for link in links:
         driver.get(link)
-        time.sleep(1)
+        await asyncio.sleep(1)
         title = driver.find_element(By.TAG_NAME, "h1").text
         location = driver.find_element(By.CSS_SELECTOR, "dd[data-jd-location]").text
         try:
@@ -50,4 +53,4 @@ def run_cv_library():
             description = driver.find_element(By.CLASS_NAME, "job__description").text
         except:
             description = driver.find_element(By.CLASS_NAME, "premium-description").text
-        jobs.add(title, description, company=company, url=link, site="CV Library", location=location)
+        await jobs.add(title, description, company=company, url=link, site="CV Library", location=location)

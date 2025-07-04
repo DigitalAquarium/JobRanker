@@ -3,14 +3,21 @@ from gradcracker import *
 from linkedin import *
 from reed import *
 from otta import *
+from eFinancialCareers import *
 
-# TODO: Welcome to the Jungle? glassdoor, Indeed. GRB??
 
-run_otta()
-run_reed()
-run_cv_library()
-run_gradcracker()
-run_linkedin()
+# TODO: glassdoor, Indeed. GRB??
+
+
+async def main():
+    tasks = []
+    for func in [run_e_financial_careers, run_otta, run_reed, run_cv_library, run_gradcracker, run_linkedin]:
+        tasks.append(asyncio.create_task(func()))
+    for task in tasks:
+        await task
+
+
+asyncio.run(main())
 
 job_list = list(jobs.jobs)
 job_list.sort()

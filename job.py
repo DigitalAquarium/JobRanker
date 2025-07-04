@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 from gemini import prompt
 from maps import get_distance
@@ -36,6 +37,8 @@ if cur.execute("SELECT name FROM sqlite_master").fetchone() is None:
         company     INTEGER REFERENCES company (id) 
     );''')
 
+db_write_lock = asyncio.Lock()
+
 
 class Company:
     RECRUITERS = ["efinancialcareers", "hunter bond"]
@@ -43,44 +46,45 @@ class Company:
     summary = ""
     url = ""
     id = None
-
-    def __new__(cls, name):
-        # Prevent listings from recruitment companies from other platforms. instead search their platform directly.
-        # This should make it easier to prevent duplicate entries and also make it clearer which company the role is
-        # actually for.
-        if name.lower() in Company.RECRUITERS:
-            return None
-        else:
-            return super().__new__(cls)
+    initialised = False
 
     def __init__(self, name):
-
         if name == "":
             self.name = ""
             self.summary = ""
             self.url = ""
         else:
             self.name = name
-            existing_company = cur.execute("SELECT summary,url,id FROM company WHERE name = (?)", (name,)).fetchone()
+
+    async def create(self):
+        if self.name == "" or self.name.lower() in Company.RECRUITERS:
+            self.initialised = False
+        else:
+            existing_company = cur.execute("SELECT summary,url,id FROM company WHERE name = (?)",
+                                           (self.name,)).fetchone()
             if existing_company:
                 self.summary = existing_company[0]
                 self.url = existing_company[1]
                 self.id = existing_company[2]
             else:
-                company_info = prompt(name).split("|")
+                company_info = await prompt(self.name)
+                company_info = company_info.split("|")
                 self.summary = company_info[0]
                 try:
                     self.url = company_info[1].replace(" ", "")
                 except:
-                    company_info = prompt("COMPANY_NAME:\n" + name).split("|")
+                    company_info = await prompt("COMPANY_NAME:\n" + self.name)
+                    company_info = company_info.split("|")
                     try:
                         self.url = company_info[1].replace(" ", "")
                     except:
                         self.url = "err"
-                new_id = cur.execute("INSERT INTO company (name,summary,url) VALUES (?,?,?) RETURNING id",
-                                     (self.name, self.summary, self.url)).fetchone()
-                self.id = new_id[0]
-                con.commit()
+                async with db_write_lock:
+                    new_id = cur.execute("INSERT INTO company (name,summary,url) VALUES (?,?,?) RETURNING id",
+                                         (self.name, self.summary, self.url)).fetchone()
+                    self.id = new_id[0]
+                    con.commit()
+            self.initialised = True
 
     def __eq__(self, other):
         return self.name == other.name
@@ -90,41 +94,48 @@ class Location:
     name = ""
     distance_score = None
     id = None
+    initialised = False
 
     def __init__(self, name):
         if name == "":
             self.name = ""
             self.distance_score = 0
         else:
-            name = name.lower()
+            self.name = name.lower()
+
+    async def create(self):
+        if self.name == "":
+            self.initialised = False
+            return
+        existing_location = cur.execute("SELECT distance_score,id FROM location WHERE name = (?)",
+                                        (self.name,)).fetchone()
+        if existing_location:
+            self.name = self.name
+            self.distance_score = existing_location[0]
+            self.id = existing_location[1]
+        else:
+            self.name = await prompt(self.name, prompt_type="location")
+            self.name = self.name.lower()
             existing_location = cur.execute("SELECT distance_score,id FROM location WHERE name = (?)",
-                                            (name,)).fetchone()
+                                            (self.name,)).fetchone()
             if existing_location:
-                self.name = name
                 self.distance_score = existing_location[0]
                 self.id = existing_location[1]
             else:
-                name = prompt(name, prompt_type="location")
-                name = name.lower()
-                self.name = name
-                existing_location = cur.execute("SELECT distance_score,id FROM location WHERE name = (?)",
-                                                (name,)).fetchone()
-                if existing_location:
-                    self.distance_score = existing_location[0]
-                    self.id = existing_location[1]
+                distance = get_distance(self.name)
+                if distance > 3:
+                    # Location is not in the uk, or nearby european countries.
+                    self.distance_score = -50
+                if distance > 2.5:
+                    self.distance_score = 0
                 else:
-                    distance = get_distance(name)
-                    if distance > 3:
-                        # Location is not in the uk, or nearby european countries.
-                        self.distance_score = -50
-                    if distance > 2.5:
-                        self.distance_score = 0
-                    else:
-                        self.distance_score = round((2.5 - distance) * 40)
+                    self.distance_score = round((2.5 - distance) * 40)
+                async with db_write_lock:
                     new_id = cur.execute("INSERT INTO location (name,distance_score) VALUES (?,?) RETURNING id",
                                          (self.name, self.distance_score)).fetchone()
                     self.id = new_id[0]
                     con.commit()
+        self.initialised = True
 
     def __repr__(self):
         return self.name
@@ -170,11 +181,15 @@ class Job:
     def __init__(self, title, description, site, url, company, location):
         self.title = title
         self.description = description
+        self.company = Company(company)
+        self.location = Location(location)
+        self.site = site
+        self.url = url
+
+    async def create(self):
+        await self.company.create()
+        await self.location.create()
         if self.is_valid():
-            self.company = Company(company)
-            self.location = Location(location)
-            self.site = site
-            self.url = url
             self.get_rank()
 
     def set_location(self, loc_string):
@@ -205,6 +220,8 @@ class Job:
         return rank
 
     def is_valid(self):
+        if not self.location.initialised or not self.company.initialised:
+            return False
         if self.valid is None:
             valid = False
 
@@ -262,13 +279,15 @@ class Job:
 class JobManager:
     jobs = set()
 
-    def add(self, title, description, site="", url="", company="", location=""):
+    async def add(self, title, description, site="", url="", company="", location=""):
         job = Job(title, description, site, url, company, location)
+        await job.create()
         if job.is_valid():
             db_job = cur.execute("SELECT * FROM job WHERE (title,description) = (?,?)", (title, description)).fetchone()
             if db_job is None:
-                cur.execute(
-                    "INSERT INTO job (title,description,site,url,company,location,rank) VALUES (?,?,?,?,?,?,?)",
-                    (job.title, job.description, job.site, job.url, job.company.id, job.location.id, job.rank))
-                con.commit()
+                async with db_write_lock:
+                    cur.execute(
+                        "INSERT INTO job (title,description,site,url,company,location,rank) VALUES (?,?,?,?,?,?,?)",
+                        (job.title, job.description, job.site, job.url, job.company.id, job.location.id, job.rank))
+                    con.commit()
             self.jobs.add(job)
