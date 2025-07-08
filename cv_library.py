@@ -1,10 +1,56 @@
 from common import *
 
-driver = webdriver.Chrome()
-actions = ActionChains(driver)
+import playwright.async_api
+
+
 
 
 async def run_cv_library():
+    x = await playwright.async_api.async_playwright().start()
+    browser = await x.chromium.launch(headless=False)
+    context = await browser.new_context()
+
+    page = await context.new_page()
+    await page.goto("https://www.cv-library.co.uk/candidate/login")
+    await page.get_by_text("Reject All").click()
+    await page.get_by_label("email").fill(email)
+    await page.get_by_label("password").fill(os.getenv("CV_LIB_PW"))
+    await page.get_by_role("button").get_by_text("Login as jobseeker").click()
+    links = []
+    await asyncio.sleep(1)
+    headings = await page.locator("css=.jobs-title").all()
+    for heading in headings:
+        links.append("https://www.cv-library.co.uk" + await heading.get_attribute("href"))
+
+    await page.locator("css=#header-search-keywords").fill("graduate software developer")
+    await page.locator("css=#header-search-location").fill("Shepherds Bush, Greater London")
+    await page.get_by_role("button", name="Find jobs").click()
+    flag = True
+    while flag:
+        await asyncio.sleep(1)
+        headings = await page.locator("css=h2 a").all()
+        for heading in headings:
+            if Job.test_blacklist(await heading.text_content()):
+                links.append("https://www.cv-library.co.uk" + await heading.get_attribute("href"))
+        next_button = page.locator("css=.pagination__next")
+        if await next_button.is_visible():
+            await next_button.click()
+        else:
+            flag = False
+
+
+    for link in links:
+        page = await context.new_page()
+        await page.goto(link)
+
+
+
+    await asyncio.sleep(1000000000000)
+
+
+async def old_run_cv_library():
+    driver = webdriver.Chrome()
+    actions = ActionChains(driver)
     driver.get("https://www.cv-library.co.uk/candidate/login")
     while True:
         try:
@@ -54,3 +100,6 @@ async def run_cv_library():
         except:
             description = driver.find_element(By.CLASS_NAME, "premium-description").text
         await jobs.add(title, description, company=company, url=link, site="CV Library", location=location)
+
+
+#asyncio.run(run_cv_library())

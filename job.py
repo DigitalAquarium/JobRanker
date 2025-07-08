@@ -154,7 +154,7 @@ class Job:
     terms_dict = {
         20: ["graduate scheme", "robotics", "robot"],
         10: ["python", "java", "graduate", "entry level", "entry-level", " ros ", "django", "team", "teamwork",
-             "remote",
+             "remote","sustainabl","energy",
              "automotive", "transport", "gaming", "game", "trains",
              "cyber security", "cybersecurity", "mentor"],
         5: ["junior", "c++", "javascript", "2022", "cyber"],
@@ -164,7 +164,7 @@ class Job:
         -2: ["1 year of experience"],
         -5: ["finance"],
         -20: ["2026", "msc", "meng", "3 years of experience"],
-        -30: ["gambling", "3+ years", "4+ years", "5+ years"]
+        -40: ["gambling","casino", "3+ years", "4+ years", "5+ years"]
     }
 
     title = ""

@@ -8,10 +8,10 @@ from eFinancialCareers import *
 
 # TODO: glassdoor, Indeed. GRB??
 
-
+#run_otta,run_cv_library,
 async def main():
     tasks = []
-    for func in [run_e_financial_careers, run_otta, run_reed, run_cv_library, run_gradcracker, run_linkedin]:
+    for func in [run_e_financial_careers,  run_reed,  run_gradcracker, run_linkedin]:
         tasks.append(asyncio.create_task(func()))
     for task in tasks:
         await task

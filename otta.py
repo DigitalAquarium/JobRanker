@@ -1,10 +1,25 @@
 from common import *
-
-driver = webdriver.Chrome()
-actions = ActionChains(driver)
+import playwright.async_api
 
 
 async def run_otta():
+    x = await playwright.async_api.async_playwright().start()
+    browser = await x.chromium.launch(headless=False)
+    context = await browser.new_context()
+
+    page = await context.new_page()
+    await page.goto("https://app.welcometothejungle.com/")
+    print(await page.title())
+    await page.get_by_label("email").fill(email)
+    await page.get_by_label("password").fill(os.getenv("OTTA_PW"))
+    await page.get_by_role("button").get_by_text("Sign in").click()
+
+    await asyncio.sleep(1000000000000)
+
+
+async def run_otta_old():
+    driver = webdriver.Chrome()
+    actions = ActionChains(driver)
     driver.get("https://app.welcometothejungle.com/")
     driver.find_element(By.ID, "email").send_keys(email)
     driver.find_element(By.ID, "password").send_keys(os.getenv("OTTA_PW"), Keys.ENTER)
@@ -36,3 +51,6 @@ async def run_otta():
             break
         await jobs.add(title, description, location=location, company=company, url=driver.current_url, site="Otta")
         actions.key_down(Keys.RIGHT).key_up(Keys.RIGHT).perform()
+
+
+#asyncio.run(run_otta())
