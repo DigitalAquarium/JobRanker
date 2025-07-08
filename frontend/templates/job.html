@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{title}} - JobRanker</title>
+</head>
+<body>
+<h1><a href="{{url}}">{{title}}</a></h1>
+<a href="https://www.google.com/maps/search/{{location}}">{{location}}</a>
+<h2><a href="{{company_url}}">{{company}}</a> via {{site}}</h2>
+<p>{{company_summary | safe}}</p>
+<h2>Job Description:</h2>
+<p>{{description | safe}}</p>
+<ul>
+    <li><a href="/dissmiss/{{id}}/{{next}}">Dismiss</a></li>
+    <li><a href="/view/{{next}}">Ignore</a></li>
+    <li><a href="/apply/{{id}}/{{next}}">Apply</a></li>
+</ul>
+</body>
+</html>
