@@ -4,6 +4,8 @@ import sqlite3
 
 app = Flask(__name__)
 
+checked_ids = set()
+
 
 @app.route("/")
 async def home():
@@ -14,13 +16,6 @@ async def home():
 async def view(job_id):
     con = sqlite3.connect("../job_ranker.sqlite3")
     cur = con.cursor()
-    '''jobs = cur.execute("SELECT job.id, job.title,job.description,job.site,job.url,company.name,company.summary,"
-                       "company.url,location.name FROM ((job"
-                       " INNER JOIN company ON job.company=company.id)"
-                       " INNER JOIN location ON job.location=location.id)"
-                       " WHERE applied <> 1 AND dismissed <> 1 ORDER BY rank DESC;").fetchall()
-    for i in jobs:
-        print(i)'''
 
     if job_id == 0:
         job = cur.execute("SELECT job.title,job.description,job.site,job.url,company.name,company.summary,"
@@ -35,12 +30,14 @@ async def view(job_id):
                           " INNER JOIN company ON job.company=company.id)"
                           " INNER JOIN location ON job.location=location.id)"
                           " WHERE job.id = ?;", (job_id,)).fetchone()
-
+    global checked_ids
+    checked_ids.add(job_id)
+    qs = ",".join("?" * len(checked_ids))
     next = cur.execute("SELECT job.id FROM ((job"
                        " INNER JOIN company ON job.company=company.id)"
                        " INNER JOIN location ON job.location=location.id)"
-                       " WHERE applied <> 1 AND dismissed <> 1 AND rank <= ? AND job.id <> ? ORDER BY rank DESC;",
-                       (job[8], job_id)).fetchone()[0]
+                       f" WHERE applied <> 1 AND dismissed <> 1 AND rank <= ? AND job.id NOT IN ({qs}) ORDER BY rank DESC;",
+                       [job[8]] + list(checked_ids)).fetchone()[0]
     con.close()
     return render_template("job.html", title=job[0], description=escape(job[1]).replace("\n", "<br>"), site=job[2],
                            url=job[3], company=job[4], company_summary=escape(job[5]).replace("\n", "<br>"),
@@ -57,8 +54,8 @@ async def apply(job_id, next):
     return redirect(f"/view/{next}")
 
 
-@app.route("/dissmiss/<int:job_id>/<int:next>")
-async def dissmiss(job_id, next):
+@app.route("/dismiss/<int:job_id>/<int:next>")
+async def dismiss(job_id, next):
     con = sqlite3.connect("../job_ranker.sqlite3")
     cur = con.cursor()
     cur.execute("UPDATE job SET dismissed=1 WHERE id = ?", (job_id,))

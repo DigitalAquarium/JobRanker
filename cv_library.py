@@ -2,7 +2,31 @@ from common import *
 
 import playwright.async_api
 
+from job_board import JobBoardScraper, JobBoardLink
 
+
+class CVLibrary(JobBoardScraper):
+    site_url = "https://www.cv-library.co.uk"
+    site_name = "CVLibrary"
+
+    async def get_recommendations(self, link_set, lock):
+        context, page = await self.get_context()
+        recs = await page.locator(".hp-job-matches-slide li").all()
+        for rec in recs:
+            atag = rec.locator("a")
+            async with lock:
+                self.add_link(link_set, await atag.text_content(), await atag.get_attribute("href"))
+
+    async def process_search_result_page(self, page, link_set, lock):
+        # returns true if there are more pages, else false.
+        return False
+
+    async def next_page(self, page):
+        next_button = page.locator("css=.pagination__next")
+        await next_button.click()
+
+    async def get_search_results(self, link_set, lock, search_term, no_pages):
+        pass
 
 
 async def run_cv_library():
@@ -38,12 +62,9 @@ async def run_cv_library():
         else:
             flag = False
 
-
     for link in links:
         page = await context.new_page()
         await page.goto(link)
-
-
 
     await asyncio.sleep(1000000000000)
 
@@ -63,7 +84,7 @@ async def old_run_cv_library():
     driver.find_element(By.ID, "cand_email").send_keys(email)
     driver.find_element(By.ID, "cand_password").send_keys(os.getenv("CV_LIB_PW"))
     driver.find_element(By.CSS_SELECTOR, "input[type='submit']").click()
-    await asyncio.sleep(2)
+    await asyncio.sleep(1.2)
     links = []
     for job in driver.find_elements(By.CLASS_NAME, "job-match"):
         if Job.test_blacklist(job.find_element(By.TAG_NAME, "h3").text):
@@ -102,4 +123,6 @@ async def old_run_cv_library():
         await jobs.add(title, description, company=company, url=link, site="CV Library", location=location)
 
 
-#asyncio.run(run_cv_library())
+x = CVLibrary()
+
+asyncio.run(x.get_recommendations(set(), asyncio.Lock()))
