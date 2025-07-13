@@ -4,6 +4,13 @@ import playwright.async_api
 from os import mkdir
 
 
+async def get_context(browser, site, url):
+    context = await browser.new_context(storage_state=".auth/" + site + ".json")
+    page = await context.new_page()
+    await page.goto(url)
+    return context, page
+
+
 class JobBoardScraper:
     site_name = "example"
     site_url = "https://www.google.co.uk"
@@ -37,13 +44,10 @@ class JobBoardScraper:
         if self.browser is None:
             await self.setup()
         try:
-            context = await self.browser.new_context(storage_state=".auth/" + self.site_name + ".json")
+            return await get_context(self.browser, self.site_name, self.site_url)
         except FileNotFoundError:
             await self.login_setup()
-            context = await self.browser.new_context(storage_state=".auth/" + self.site_name + ".json")
-        page = await context.new_page()
-        await page.goto(self.site_url)
-        return context, page
+            return await get_context(self.browser, self.site_name, self.site_url)
 
     def add_link(self, links, text, href):
         if Job.test_blacklist(text):
@@ -73,7 +77,7 @@ class JobBoardLink:
         self.link = link
         self.site = site
 
-    async def scrape(self):
+    async def scrape(self, browser, semaphore, job_manager):
         raise NotImplementedError
 
     def __hash__(self):

@@ -2,7 +2,29 @@ from common import *
 
 import playwright.async_api
 
-from job_board import JobBoardScraper, JobBoardLink
+from job_board import JobBoardScraper, JobBoardLink, get_context
+
+
+class CVLibraryLink(JobBoardLink):
+    async def scrape(self, browser, semaphore, job_manager):
+        async with semaphore:
+            context, page = await get_context(browser, self.site, self.link)
+            title = await page.get_by_role("heading", level=1).inner_text()
+            location = await page.locator("dd[data-jd-location]").inner_text()
+            try:
+                company = await page.locator("span[data-jd-company]").inner_text()
+            except:
+                company = await page.locator(".prem-feat-posted a").inner_text()
+            try:
+                description = await page.locator(".job__description").inner_text()
+            except:
+                description = await page.locator(".premium-description").inner_text()
+            await job_manager.add(title, description, company=company, url=self.link, site="CV Library",
+                                  location=location)
+
+            await page.close()
+            await context.close()
+            return
 
 
 class CVLibrary(JobBoardScraper):
@@ -14,115 +36,74 @@ class CVLibrary(JobBoardScraper):
         recs = await page.locator(".hp-job-matches-slide li").all()
         for rec in recs:
             atag = rec.locator("a")
+            text = await atag.inner_text()
+            href = await atag.get_attribute("href")
             async with lock:
-                self.add_link(link_set, await atag.text_content(), await atag.get_attribute("href"))
+                if Job.test_blacklist(text):
+                    link_set.add(CVLibraryLink(self.site_url + href, self.site_name))
+        await page.close()
+        await context.close()
+        return
 
     async def process_search_result_page(self, page, link_set, lock):
-        # returns true if there are more pages, else false.
-        return False
+        await asyncio.sleep(2)
+        articles = await page.locator("li article").filter(has=page.locator("h2")).all()
+        for article in articles:
+            # print(await heading.locator(".job__title a").inner_text())
+            heading = article.locator(".job__title a")
+            text = await heading.inner_text()
+            company = await article.locator(".job__company-link").inner_text()
+            href = await heading.get_attribute("href")
+            if Job.test_blacklist(text, company=company):
+                async with lock:
+                    link_set.add(CVLibraryLink(self.site_url + href, self.site_name))
 
     async def next_page(self, page):
         next_button = page.locator("css=.pagination__next")
-        await next_button.click()
-
-    async def get_search_results(self, link_set, lock, search_term, no_pages):
-        pass
-
-
-async def run_cv_library():
-    x = await playwright.async_api.async_playwright().start()
-    browser = await x.chromium.launch(headless=False)
-    context = await browser.new_context()
-
-    page = await context.new_page()
-    await page.goto("https://www.cv-library.co.uk/candidate/login")
-    await page.get_by_text("Reject All").click()
-    await page.get_by_label("email").fill(email)
-    await page.get_by_label("password").fill(os.getenv("CV_LIB_PW"))
-    await page.get_by_role("button").get_by_text("Login as jobseeker").click()
-    links = []
-    await asyncio.sleep(1)
-    headings = await page.locator("css=.jobs-title").all()
-    for heading in headings:
-        links.append("https://www.cv-library.co.uk" + await heading.get_attribute("href"))
-
-    await page.locator("css=#header-search-keywords").fill("graduate software developer")
-    await page.locator("css=#header-search-location").fill("Shepherds Bush, Greater London")
-    await page.get_by_role("button", name="Find jobs").click()
-    flag = True
-    while flag:
-        await asyncio.sleep(1)
-        headings = await page.locator("css=h2 a").all()
-        for heading in headings:
-            if Job.test_blacklist(await heading.text_content()):
-                links.append("https://www.cv-library.co.uk" + await heading.get_attribute("href"))
-        next_button = page.locator("css=.pagination__next")
         if await next_button.is_visible():
             await next_button.click()
+            return True
         else:
-            flag = False
+            return False
 
-    for link in links:
-        page = await context.new_page()
-        await page.goto(link)
+    async def get_search_results(self, link_set, lock, search_term, no_pages):
+        context, page = await self.get_context()
+        if not no_pages:
+            no_pages = 100000
+        await page.get_by_placeholder("Keywords / Job Title / Job Ref").fill(search_term)
+        await page.get_by_placeholder("Location").fill("Shepherds Bush, Greater London")
+        await page.get_by_role("button", name="Find jobs").click()
+        for i in range(no_pages):
+            await self.process_search_result_page(page, link_set, lock)
+            if not await self.next_page(page):
+                break
 
-    await asyncio.sleep(1000000000000)
+        for link in link_set:
+            print(link.link)
 
-
-async def old_run_cv_library():
-    driver = webdriver.Chrome()
-    actions = ActionChains(driver)
-    driver.get("https://www.cv-library.co.uk/candidate/login")
-    while True:
-        try:
-            driver.find_element(By.CSS_SELECTOR, "div[class=cf_modal_container]").shadow_root.find_element(By.ID,
-                                                                                                           "cf_consent-buttons__reject-all").click()
-            break
-        except:
-            await asyncio.sleep(1)
-    await asyncio.sleep(1)
-    driver.find_element(By.ID, "cand_email").send_keys(email)
-    driver.find_element(By.ID, "cand_password").send_keys(os.getenv("CV_LIB_PW"))
-    driver.find_element(By.CSS_SELECTOR, "input[type='submit']").click()
-    await asyncio.sleep(1.2)
-    links = []
-    for job in driver.find_elements(By.CLASS_NAME, "job-match"):
-        if Job.test_blacklist(job.find_element(By.TAG_NAME, "h3").text):
-            links.append(job.find_element(By.CLASS_NAME, "cvl-btn--blue").get_attribute("href"))
-
-    driver.find_element(By.ID, "header-search-keywords").send_keys("graduate software developer")
-    driver.find_element(By.ID, "header-search-location").send_keys("Shepherds Bush, Greater London" + Keys.ENTER)
-
-    flag = True
-    while flag:
-        await asyncio.sleep(2)
-        for job in driver.find_elements(By.CLASS_NAME, "results__item"):
-            header = job.find_element(By.TAG_NAME, "h2")
-            if Job.test_blacklist(header.text):
-                link = header.find_element(By.TAG_NAME, "a").get_attribute("href")
-                links.append(link)
-        try:
-            next = driver.find_element(By.CLASS_NAME, "pagination__next")
-            actions.move_to_element(next).click().perform()
-        except:
-            flag = False
-
-    for link in links:
-        driver.get(link)
-        await asyncio.sleep(1)
-        title = driver.find_element(By.TAG_NAME, "h1").text
-        location = driver.find_element(By.CSS_SELECTOR, "dd[data-jd-location]").text
-        try:
-            company = driver.find_element(By.CSS_SELECTOR, "span[data-jd-company]").text
-        except:
-            company = driver.find_element(By.CLASS_NAME, "prem-feat-posted").find_element(By.TAG_NAME, "a").text
-        try:
-            description = driver.find_element(By.CLASS_NAME, "job__description").text
-        except:
-            description = driver.find_element(By.CLASS_NAME, "premium-description").text
-        await jobs.add(title, description, company=company, url=link, site="CV Library", location=location)
+        await page.close()
+        await context.close()
+        return
 
 
-x = CVLibrary()
+async def main():
+    x = CVLibrary()
+    s = set()
+    l = asyncio.Lock()
+    jm = JobManager()
+    soft = asyncio.create_task(x.get_search_results(s, l, "graduate software engineer", 0))
+    cyber = asyncio.create_task(x.get_search_results(s, l, "graduate cyber security", 0))
+    await asyncio.gather(x.get_recommendations(s, l), soft, cyber)
+    for link in s:
+        print(link.link)
+    l = []
+    temp = await playwright.async_api.async_playwright().start()
+    browser = await temp.chromium.launch(headless=False)
+    NUM_THREADS = 5
+    sem = asyncio.Semaphore(NUM_THREADS)
+    for x in s:
+        l.append(asyncio.create_task(x.scrape(browser, sem, jm)))
+    await asyncio.gather(*l)  # x.scrape(jm) for x in s
 
-asyncio.run(x.get_recommendations(set(), asyncio.Lock()))
+
+asyncio.run(main())

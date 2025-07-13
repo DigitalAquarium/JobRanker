@@ -266,13 +266,22 @@ class Job:
         return hash(hashable_string)
 
     @staticmethod
-    def test_blacklist(phrase):
+    def test_blacklist(phrase,company=None,full_description=None):
         phrase = phrase.lower()
         passes = True
         for term in Job.term_blacklist:
             if term in phrase:
                 passes = False
                 break
+        if company is not None and company in Company.RECRUITERS:
+            passes = False
+        if full_description is not None:
+            passes = False
+            for term in Job.term_whitelist:
+                if term in full_description.lower():
+                    passes = True
+                    break
+
         return passes
 
 
