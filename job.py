@@ -146,6 +146,12 @@ class Location:
     def __eq__(self, other):
         return self.name == other.name
 
+    def __hash__(self):
+        if not self.initialised:
+            raise ValueError
+        else:
+            return hash(self.name)
+
 
 class Job:
     term_blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "mandarin", "phd", "vp ",
@@ -266,7 +272,7 @@ class Job:
         return hash(hashable_string)
 
     @staticmethod
-    def test_blacklist(phrase,company=None,full_description=None):
+    def test_blacklist(phrase, company=None, full_description=None):
         phrase = phrase.lower()
         passes = True
         for term in Job.term_blacklist:
@@ -292,11 +298,11 @@ class JobManager:
         job = Job(title, description, site, url, company, location)
         await job.create()
         if job.is_valid():
-            db_job = cur.execute("SELECT * FROM job WHERE (title,description) = (?,?)", (title, description)).fetchone()
-            if db_job is None:
-                async with db_write_lock:
+            async with db_write_lock:
+                db_job = cur.execute("SELECT * FROM job WHERE (description) = (?)", (description,)).fetchone()
+                if db_job is None:
                     cur.execute(
                         "INSERT INTO job (title,description,site,url,company,location,rank) VALUES (?,?,?,?,?,?,?)",
                         (job.title, job.description, job.site, job.url, job.company.id, job.location.id, job.rank))
                     con.commit()
-            self.jobs.add(job)
+                self.jobs.add(job)

@@ -1,3 +1,5 @@
+import random
+
 from common import *
 
 import playwright.async_api
@@ -8,20 +10,21 @@ from job_board import JobBoardScraper, JobBoardLink, get_context
 class CVLibraryLink(JobBoardLink):
     async def scrape(self, browser, semaphore, job_manager):
         async with semaphore:
+            await asyncio.sleep(random.uniform(2, 6))
             context, page = await get_context(browser, self.site, self.link)
             title = await page.get_by_role("heading", level=1).inner_text()
             location = await page.locator("dd[data-jd-location]").inner_text()
-            try:
+            if await page.locator("span[data-jd-company]").is_visible():
                 company = await page.locator("span[data-jd-company]").inner_text()
-            except:
+            else:
                 company = await page.locator(".prem-feat-posted a").inner_text()
-            try:
+            if await page.locator(".job__description").is_visible():
                 description = await page.locator(".job__description").inner_text()
-            except:
+            else:
                 description = await page.locator(".premium-description").inner_text()
+
             await job_manager.add(title, description, company=company, url=self.link, site="CV Library",
                                   location=location)
-
             await page.close()
             await context.close()
             return
@@ -46,7 +49,7 @@ class CVLibrary(JobBoardScraper):
         return
 
     async def process_search_result_page(self, page, link_set, lock):
-        await asyncio.sleep(2)
+        await asyncio.sleep(5)
         articles = await page.locator("li article").filter(has=page.locator("h2")).all()
         for article in articles:
             # print(await heading.locator(".job__title a").inner_text())
@@ -78,32 +81,6 @@ class CVLibrary(JobBoardScraper):
             if not await self.next_page(page):
                 break
 
-        for link in link_set:
-            print(link.link)
-
         await page.close()
         await context.close()
         return
-
-
-async def main():
-    x = CVLibrary()
-    s = set()
-    l = asyncio.Lock()
-    jm = JobManager()
-    soft = asyncio.create_task(x.get_search_results(s, l, "graduate software engineer", 0))
-    cyber = asyncio.create_task(x.get_search_results(s, l, "graduate cyber security", 0))
-    await asyncio.gather(x.get_recommendations(s, l), soft, cyber)
-    for link in s:
-        print(link.link)
-    l = []
-    temp = await playwright.async_api.async_playwright().start()
-    browser = await temp.chromium.launch(headless=False)
-    NUM_THREADS = 5
-    sem = asyncio.Semaphore(NUM_THREADS)
-    for x in s:
-        l.append(asyncio.create_task(x.scrape(browser, sem, jm)))
-    await asyncio.gather(*l)  # x.scrape(jm) for x in s
-
-
-asyncio.run(main())

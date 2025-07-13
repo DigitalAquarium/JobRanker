@@ -1,56 +1,85 @@
 from common import *
+
 import playwright.async_api
 
-
-async def run_otta():
-    x = await playwright.async_api.async_playwright().start()
-    browser = await x.chromium.launch(headless=False)
-    context = await browser.new_context()
-
-    page = await context.new_page()
-    await page.goto("https://app.welcometothejungle.com/")
-    print(await page.title())
-    await page.get_by_label("email").fill(email)
-    await page.get_by_label("password").fill(os.getenv("OTTA_PW"))
-    await page.get_by_role("button").get_by_text("Sign in").click()
-
-    await asyncio.sleep(1000000000000)
+from job_board import JobBoardScraper, JobBoardLink, get_context
 
 
-async def run_otta_old():
-    driver = webdriver.Chrome()
-    actions = ActionChains(driver)
-    driver.get("https://app.welcometothejungle.com/")
-    driver.find_element(By.ID, "email").send_keys(email)
-    driver.find_element(By.ID, "password").send_keys(os.getenv("OTTA_PW"), Keys.ENTER)
-    await asyncio.sleep(3)
-    driver.get("https://app.welcometothejungle.com/jobs")
-    await asyncio.sleep(0.7)
-    try:
-        driver.find_element(By.CSS_SELECTOR, 'div[data-testid="modal-remove-button"]').click()
-    except:
-        pass
-
-    while True:
-        await asyncio.sleep(1)
-        try:
-            web_title = driver.find_element(By.TAG_NAME, "h1").text
+class OttaLink(JobBoardLink):
+    async def scrape(self, browser, semaphore, job_manager):
+        async with semaphore:
+            context, page = await get_context(browser, self.site, self.link)
+            await page.get_by_test_id("modal-remove-button").click()
+            web_title = await page.get_by_test_id("job-title").inner_text()
             web_title = web_title.split(", ")
             company = web_title[-1]
             title = ""
             for i in web_title[:-1]:
                 title += i + ", "
             title = title[:-2]
+            description = await page.locator(
+                '//*[@id="root"]/div[1]/div/div/div[1]/div/div[2]/div/div[2]/div/div[1]/div[1]/div').inner_text()
+            location_tags = await page.get_by_test_id("job-location-tag").all()
+            location_names = set()
+            for loc in location_tags:
+                location_names.add((await loc.inner_text()).lower())
+            if "london" in location_names:
+                location = "central london"
+            else:
+                location_objs = set()
+                for loc_str in location_names:
+                    loc_obj = Location(loc_str)
+                    await loc_obj.create()
+                    location_objs.add(loc_obj)
+                location_objs = list(location_objs)
+                location = sorted(location_objs, key=lambda l: l.distance_score,reverse=True)[0].name
 
-            description = driver.find_element(By.XPATH,
-                                              '//*[@id="root"]/div[1]/div/div/div[1]/div/div[2]/div/div[2]/div/div[1]/div[1]/div').text
-            description = description.split("\nSalary benchmarks")[0]
-            location = driver.find_element(By.CSS_SELECTOR, "div[data-testid='job-location-tag']").text
-        except:
-            # There are no more recommendations
-            break
-        await jobs.add(title, description, location=location, company=company, url=driver.current_url, site="Otta")
-        actions.key_down(Keys.RIGHT).key_up(Keys.RIGHT).perform()
+            await job_manager.add(title, description, company=company, url=self.link, site=self.site,
+                                  location=location)
+
+            await page.close()
+            await context.close()
+            return
 
 
-#asyncio.run(run_otta())
+class Otta(JobBoardScraper):
+    site_url = "https://app.welcometothejungle.com"
+    site_name = "Otta"
+
+    async def next_page(self, page):
+        next_button = page.get_by_test_id("next-button")
+        if await next_button.is_visible():
+            await next_button.click()
+            return True
+        else:
+            return False
+
+    async def get_recommendations(self, link_set, lock):
+        context, page = await self.get_context()
+        await asyncio.sleep(2)
+        if await page.get_by_test_id("ALL_MATCHES").is_visible():
+            await page.get_by_test_id("ALL_MATCHES").click()
+        else:
+            await page.close()
+            await context.close()
+            return
+        await page.get_by_test_id("modal-remove-button").click()
+        while True:
+            web_title = await page.get_by_test_id("job-title").inner_text()
+            web_title = web_title.split(", ")
+            company = web_title[-1]
+            title = ""
+            for i in web_title[:-1]:
+                title += i + ", "
+            title = title[:-2]
+            full_description = await page.locator(
+                '//*[@id="root"]/div[1]/div/div/div[1]/div/div[2]/div/div[2]/div/div[1]/div[1]/div').inner_text()
+            async with lock:
+                if Job.test_blacklist(title, company=company, full_description=full_description):
+                    link_set.add(OttaLink(page.url,self.site_name))
+            if not await self.next_page(page):
+                break
+            await asyncio.sleep(3)
+        await page.close()
+        await context.close()
+        return
