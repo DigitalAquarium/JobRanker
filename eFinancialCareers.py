@@ -1,44 +1,89 @@
-import re
+from playwright.async_api import expect
 
 from common import *
+import playwright.async_api
 
-driver = webdriver.Chrome()
-actions = ActionChains(driver)
+from job_board import JobBoardScraper, JobBoardLink
 
 
-async def run_e_financial_careers():
-    driver.get(
-        "https://www.efinancialcareers.co.uk/jobs/graduate-software-engineer?q=graduate+software+engineer&countryCode"
-        "=GB&radius=40&radiusUnit=km&pageSize=15&currencyCode=GBP&language=en&includeUnspecifiedSalary=true")
-    await asyncio.sleep(5)
-    driver.find_element(By.ID, "cmpbntnotxt").click()
-    show_more = driver.find_element(By.TAG_NAME, "efc-show-more")
-    for i in range(10):
-        actions.scroll_by_amount(0, 5000).pause(0.5).move_to_element(show_more).click().perform()
-        await asyncio.sleep(1)
-    actions.scroll_by_amount(0, 5000).perform()
-    await asyncio.sleep(1)
-    job_container = driver.find_element(By.XPATH,
-                                        '/html/body/efc-shell-root/efc-job-search-page/div['
-                                        '2]/div/div/div/div/efc-job-search-results/div/div[3]')
-    urls = []
-    for entry in job_container.find_elements(By.TAG_NAME, "efc-job-card"):
-        title = entry.find_element(By.TAG_NAME, "h3")
-        url = title.find_element(By.XPATH, '..').get_attribute("href")
-        title = title.text
-        if Job.test_blacklist(title):
-            urls.append(url)
-    for url in urls:
-        driver.get(url)
-        await asyncio.sleep(1)
-        title = driver.find_element(By.TAG_NAME, "h1")
+class EFinancialCareersLink(JobBoardLink):
+    async def get_details(self, page):
+        title = page.get_by_role("heading", level=1)
         try:
-            location = title.find_element(By.XPATH, "../span[2]").text
-            company = title.find_element(By.XPATH, "../span[1]").text
-        except NoSuchElementException:
-            location = title.find_element(By.XPATH, "../span").text
-            company = title.find_element(By.XPATH, "../a").text
-        title = title.text
-        description = driver.find_element(By.TAG_NAME, "efc-job-description").text
-        description = description[:-10]
-        await jobs.add(title, description, company=company, url=url, location=location, site="eFinancialCareers")
+            location = await title.locator("xpath=../span[2]").inner_text(timeout=5000)
+            company = await title.locator("xpath=../span[1]").inner_text(timeout=5000)
+        except:
+            location = await title.locator("xpath=../span").inner_text()
+            company = await title.locator("xpath=../a").inner_text()
+        title = await title.inner_text()
+        description = await page.locator("efc-job-description").inner_text()
+        description = description.split("Job ID  ")[0]
+        return {"title": title, "description": description, "company": company, "location": location}
+
+
+class EFinancialCareers(JobBoardScraper):
+    site_url = "https://www.efinancialcareers.co.uk"
+    site_name = "eFinancialCareers"
+
+    async def process_search_result_page(self, page, link_set, lock):
+        for job in await page.locator("efc-job-card").all():
+            title = job.locator(".title")
+            text = await title.inner_text()
+            href = await title.locator("> a").get_attribute("href")
+            href = href.split("?")[0]
+            company = await job.locator(".company").inner_text()
+            if Job.test_blacklist(text, company=company):
+                async with lock:
+                    link_set.add(EFinancialCareersLink(href, self.site_name))
+        return
+
+    async def next_page(self, page):
+        next_button = page.get_by_text("Show more")
+        if await next_button.is_visible():
+            await next_button.click()
+            return True
+        else:
+            return False
+
+    async def get_search_results(self, link_set, lock, search_term, no_pages):
+        context, page = await self.get_context()
+        await asyncio.sleep(2)
+        await page.get_by_placeholder("Job title").type(search_term)
+        await page.keyboard.press("Enter")
+        await asyncio.sleep(4)
+        if no_pages == 0:
+            no_pages = 100000
+        for i in range(no_pages):
+            await asyncio.sleep(2)
+            if not await self.next_page(page):
+                break
+        print("a")
+        await self.process_search_result_page(page, link_set, lock)
+        print("b")
+        await page.close()
+        await context.close()
+        return
+
+
+'''async def main():
+    x = EFinancialCareers()
+    s = set()
+    l = asyncio.Lock()
+    jm = JobManager()
+    soft = asyncio.create_task(x.get_search_results(s, l, "graduate software engineer", 5))
+    #await asyncio.gather(x.get_recommendations(s, l, 1))
+    await asyncio.gather(soft)
+    for link in s:
+        print(link.link)
+    l = []
+    temp = await playwright.async_api.async_playwright().start()
+    browser = await temp.chromium.launch(headless=False)
+    NUM_THREADS = 5
+    sem = asyncio.Semaphore(NUM_THREADS)
+    for x in s:
+        l.append(asyncio.create_task(x.scrape(browser, sem, jm)))
+    await asyncio.gather(*l)  # x.scrape(jm) for x in s
+
+
+asyncio.run(main())
+'''

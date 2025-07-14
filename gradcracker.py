@@ -8,26 +8,18 @@ from job_board import JobBoardScraper, JobBoardLink, get_context
 
 
 class GradCrackerLink(JobBoardLink):
-    async def scrape(self, browser, semaphore, job_manager):
-        async with semaphore:
-            await asyncio.sleep(random.uniform(4 ,6))
-            context, page = await get_context(browser, self.site, self.link)
-            title = await page.get_by_role("heading", level=1).filter(has_not_text="2024/25").inner_text()
-            company = await page.locator("xpath=/html/body/div[4]/div/div[3]/ul/li[2]/a").inner_text()
-            company = company[:-4]
-            description = await page.locator(".job-description").inner_text()
-            sidebar = page.locator("xpath=/html/body/div[4]/div/div[5]/div[2]/div[1]/div[1]/ul")
-            location = ""
-            for li in await sidebar.get_by_role("listitem").all():
-                text = await li.inner_text()
-                if "Location" in text:
-                    location = text.replace("Location\n", "")
-            await job_manager.add(title, description, company=company, url=self.link, site="Gradcracker",
-                                  location=location)
-
-            await page.close()
-            await context.close()
-            return
+    async def get_details(self, page):
+        title = await page.get_by_role("heading", level=1).filter(has_not_text="2024/25").inner_text()
+        company = await page.locator("xpath=/html/body/div[4]/div/div[3]/ul/li[2]/a").inner_text()
+        company = company[:-4]
+        description = await page.locator(".job-description").inner_text()
+        sidebar = page.locator("xpath=/html/body/div[4]/div/div[5]/div[2]/div[1]/div[1]/ul")
+        location = ""
+        for li in await sidebar.get_by_role("listitem").all():
+            text = await li.inner_text()
+            if "Location" in text:
+                location = text.replace("Location\n", "")
+        return {"title": title, "description": description, "company": company, "location": location}
 
 
 class GradCracker(JobBoardScraper):
@@ -35,13 +27,12 @@ class GradCracker(JobBoardScraper):
     site_name = "Gradcracker"
     run_flag = False
 
-    async def get_recommendations(self, link_set, lock):
+    async def get_recommendations(self, link_set, lock,no_pages=0):
         return
 
     async def process_search_result_page(self, page: playwright.async_api.Page, link_set, lock):
         links = await page.get_by_title("Apply For").all()
         for head in links:
-            # print(await heading.locator(".job__title a").inner_text())
             text = await head.text_content()
             if Job.test_blacklist(text):
                 async with lock:
@@ -68,14 +59,11 @@ class GradCracker(JobBoardScraper):
             else:
                 return
 
-        print("pingas")
-
         # We're going to check everything and throw out the no_pages variable too, what a shame!
         while True:
             await self.process_search_result_page(page, link_set, lock)
             if not await self.next_page(page):
                 break
-        print("hi??")
         await page.close()
         await context.close()
         return

@@ -1,82 +1,115 @@
+import random
+
+from playwright.async_api import expect
+
 from common import *
 
-linkedin_session = os.getenv("LINKEDIN")
-
-driver = webdriver.Chrome()
-actions = ActionChains(driver)
+from job_board import JobBoardScraper, JobBoardLink
 
 
-async def set_up_linkedin():
-    driver.get("https://www.linkedin.com/")
-    driver.add_cookie({"name": "li_at", "value": linkedin_session})
-    driver.get("https://www.linkedin.com/jobs/")
-    await asyncio.sleep(4)
+class LinkedinLink(JobBoardLink):
+    async def get_details(self, page):
+        await page.get_by_role("button", name="Click to see more description").click()
 
-    recommended = driver.find_element(By.CLASS_NAME,'discovery-templates-jobs-home-vertical-list__footer')
-    actions.move_to_element(recommended).click().perform()
-    await asyncio.sleep(4)
-    await linkedin_process_page()
-
-    driver.get("https://www.linkedin.com/jobs/search/?distance=25&geoId=101165590&keywords=graduate%20software%20engineer")
-    await asyncio.sleep(10)
-    return driver, actions
+        title = await page.get_by_role("heading", level=1).inner_text()
+        location = await page.locator("xpath=/html/body/div[7]/div[3]/div[2]/div/div/main/div[2]/div[1]/div/div[1]/div/div/div/div[3]/div/span/span[1]").inner_text()
+        company = await page.locator(".job-details-jobs-unified-top-card__company-name").inner_text()
+        description = await page.locator(".mt4 > p").first.inner_text()
+        return {"title": title, "description": description, "company": company, "location": location}
 
 
-def linkedin_scroll(jobs_list_ul, yscroll=50):
-    actions.move_to_element_with_offset(jobs_list_ul, jobs_list_ul.size["width"] / 2 + 5, 0).click_and_hold()
-    flag = True
-    while flag:
-        try:
-            actions.click_and_hold().move_by_offset(0, yscroll).perform()
-        except:
-            flag = False
-    actions.release()
+class Linkedin(JobBoardScraper):
+    site_url = "https://www.linkedin.com"
+    site_name = "Linkedin"
+
+    async def get_recommendations(self, link_set, lock, no_pages=0):
+        await asyncio.sleep(random.random() * 10)
+        context, page = await self.get_context()
+        await asyncio.sleep(0.5+random.random()*5)
+        await page.goto("https://www.linkedin.com/jobs/")
+        await asyncio.sleep(0.5+random.random()*5)
+        recommendation_button = page.get_by_role("link", name="Show all Top job picks for you")
+        await expect(recommendation_button).to_be_in_viewport(timeout=60000)
+        await recommendation_button.click()
+        if no_pages == 0:
+            no_pages = 100000
+        for i in range(no_pages):
+            await self.process_search_result_page(page, link_set, lock)
+            if not await self.next_page(page):
+                break
+        await page.close()
+        await context.close()
+        return
+
+    async def process_search_result_page(self, page, link_set, lock):
+        await asyncio.sleep(3)
+        job_list_container = page.locator("xpath=//*[@id='main']/div/div[2]/div[1]/div/ul")
+        job_list_bounds = await job_list_container.bounding_box()
+        await page.mouse.move(x=job_list_bounds["x"] + job_list_bounds["width"] / 2, y=job_list_bounds["y"] + 100)
+        SCROLL_TIMES = 7
+        for i in range(100, int(job_list_bounds["height"]), int(job_list_bounds["height"] / SCROLL_TIMES)):
+            await page.mouse.wheel(0, int(job_list_bounds["height"] / SCROLL_TIMES))
+            await asyncio.sleep(0.5)
+        job_list_container = page.locator("xpath=//*[@id='main']/div/div[2]/div[1]/div/ul")
+        for job in await job_list_container.locator(">li").all():
+            title = job.locator("strong").first
+            text = await title.inner_text()
+            href = await job.get_by_role("link").get_attribute("href")
+            href = href.split("?")[0]
+            company = await job.locator(".artdeco-entity-lockup__subtitle").inner_text()
+            if Job.test_blacklist(text, company=company):
+                async with lock:
+                    link_set.add(LinkedinLink(self.site_url + href, self.site_name))
+        return
+
+    async def next_page(self, page):
+        next_button = page.get_by_role("button", name="View next page")
+        if await next_button.is_visible():
+            await next_button.click()
+            return True
+        else:
+            return False
+
+    async def get_search_results(self, link_set, lock, search_term, no_pages):
+        await asyncio.sleep(random.random() * 10)
+        context, page = await self.get_context()
+        await asyncio.sleep(0.5+random.random()*5)
+        await page.goto("https://www.linkedin.com/jobs/")
+        await asyncio.sleep(0.5+random.random()*5)
+        search_box = page.locator("#jobs-search-box-keyword-id-ember30")
+        await expect(search_box).to_be_in_viewport(timeout=60000)
+        await search_box.type(search_term)
+        await page.keyboard.press("Enter")
+        if no_pages == 0:
+            no_pages = 100000
+        for i in range(no_pages):
+            await self.process_search_result_page(page, link_set, lock)
+            if not await self.next_page(page):
+                break
+        await page.close()
+        await context.close()
+        return
 
 
-# TODO: Ensure that the description is actually loaded.
-async def linkedin_process_page():
-    global jobs
-    jobs_list_ul = driver.find_element(By.XPATH, '//*[@id="main"]/div/div[2]/div[1]/div/ul')
-    linkedin_scroll(jobs_list_ul, 50)
-    linkedin_scroll(jobs_list_ul, -100)
-
-    jobs_list = jobs_list_ul.find_elements(By.CLASS_NAME, "job-card-container--clickable")
-    for element in jobs_list:
-        await asyncio.sleep(2)
-        try:
-            element.click()
-        except:
-            # Sometimes jobs don't line up and selenium can't find the next one, in this case we're just going to skip
-            break
-        company = driver.find_element(By.CLASS_NAME, "job-details-jobs-unified-top-card__company-name")
-        title = driver.find_element(By.CLASS_NAME, "job-details-jobs-unified-top-card__job-title")
-        description = driver.find_element(By.ID, "job-details").text
-        if description[:14] == "About the job\n":
-            description = description[14:]
-        location = None
-        try:
-            location = driver.find_element(By.CSS_SELECTOR,'div[class="job-details-jobs-unified-top-card__primary-description-container"] div span span:nth-child(1)').text
-        except:
-            await asyncio.sleep(2)
-            try:
-                location = driver.find_element(By.CSS_SELECTOR,
-                                               'div[class="job-details-jobs-unified-top-card__primary-description-container"] div span span:nth-child(1)').text
-            except:
-                location = driver.find_element(By.XPATH,'/html/body/div[6]/div[3]/div[4]/div/div/main/div/div[2]/div[2]/div/div[2]/div/div[2]/div[1]/div/div[1]/div/div[1]/div/div[3]/div/span/span[1]').text
-
-        await jobs.add(title.text, description, company=company.text, site="LinkedIn", url=driver.current_url,location=location)
-
-    linkedin_scroll(jobs_list_ul, 50)
-    await asyncio.sleep(1)
-    try:
-        driver.find_element(By.CLASS_NAME, "artdeco-button--icon-right").click()
-    except:
-        pass
-    await asyncio.sleep(4)
-    # driver.refresh()
+'''async def main():
+    x = Linkedin()
+    s = set()
+    l = asyncio.Lock()
+    jm = JobManager()
+    soft = asyncio.create_task(x.get_search_results(s, l, "graduate software engineer", 5))
+    #await asyncio.gather(x.get_recommendations(s, l, 1))
+    await asyncio.gather(soft)
+    for link in s:
+        print(link.link)
+    l = []
+    temp = await playwright.async_api.async_playwright().start()
+    browser = await temp.chromium.launch(headless=False)
+    NUM_THREADS = 5
+    sem = asyncio.Semaphore(NUM_THREADS)
+    for x in s:
+        l.append(asyncio.create_task(x.scrape(browser, sem, jm)))
+    await asyncio.gather(*l)  # x.scrape(jm) for x in s
 
 
-async def run_linkedin():
-    await set_up_linkedin()
-    for i in range(10):
-        await linkedin_process_page()
+asyncio.run(main())
+'''

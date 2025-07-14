@@ -41,7 +41,7 @@ db_write_lock = asyncio.Lock()
 
 
 class Company:
-    RECRUITERS = ["efinancialcareers", "hunter bond"]
+    RECRUITERS = ["efinancialcareers", "hunter bond", "itol recruit", "itol"]
     name = ""
     summary = ""
     url = ""
@@ -155,22 +155,21 @@ class Location:
 
 class Job:
     term_blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "mandarin", "phd", "vp ",
-                      "manager", " vp", "mid level"]
+                      "manager", " vp", "mid level", "founding"]
     term_whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security", "cybersecurity"]
     terms_dict = {
         20: ["graduate scheme", "robotics", "robot"],
         10: ["python", "java", "graduate", "entry level", "entry-level", " ros ", "django", "team", "teamwork",
-             "remote", "sustainabl", "energy",
-             "automotive", "transport", "gaming", "game", "trains",
-             "cyber security", "cybersecurity", "mentor"],
+             "remote", "sustainabl", "energy", "automotive", "transport", "gaming", "game", "trains", "cyber security",
+             "cybersecurity", "mentor"],
         5: ["junior", "c++", "javascript", "2022", "cyber"],
         2: ["full stack", "2:1", "engineer", "penetration testing"],
         1: ["software", "developer", "haskell", "html", "css", "sql", "git", "version control", "linux", "windows",
             "nginx", "ghidra", "php", "matlab", "ida", "latex", " c ", "llm", "train", "progression"],
         -2: ["1 year of experience"],
         -5: ["finance"],
-        -20: ["2026", "msc", "meng", "3 years of experience"],
-        -40: ["gambling", "casino", "3+ years", "4+ years", "5+ years"]
+        -20: ["2026", "msc", "meng", "3 years of experience", "sales"],
+        -40: ["gambl", "casino", "3+ years", "4+ years", "5+ years"]
     }
 
     title = ""
@@ -227,6 +226,8 @@ class Job:
 
     def is_valid(self):
         if not self.location.initialised or not self.company.initialised:
+            print("Location or company not initialised!!111!!")
+            self.valid = False
             return False
         if self.valid is None:
             valid = False
@@ -237,12 +238,16 @@ class Job:
                     break
             for term in Job.term_blacklist:
                 if term in self.title.lower():
+                    print("Blacklist.")
                     valid = False
                     break
 
             if self.company is None:
+                print("No Company")
                 valid = False
             self.valid = valid
+            if not valid:
+                print("No whitelisted terms")
         return self.valid
 
     def __eq__(self, other):
@@ -275,11 +280,11 @@ class Job:
     def test_blacklist(phrase, company=None, full_description=None):
         phrase = phrase.lower()
         passes = True
-        for term in Job.term_blacklist:
-            if term in phrase:
+        for term in Job.term_blacklist + ["lead"]:
+            if term in phrase.lower():
                 passes = False
                 break
-        if company is not None and company in Company.RECRUITERS:
+        if company is not None and company.lower() in Company.RECRUITERS:
             passes = False
         if full_description is not None:
             passes = False
@@ -297,6 +302,7 @@ class JobManager:
     async def add(self, title, description, site="", url="", company="", location=""):
         job = Job(title, description, site, url, company, location)
         await job.create()
+        print(job.title, "is valid:", job.is_valid())
         if job.is_valid():
             async with db_write_lock:
                 db_job = cur.execute("SELECT * FROM job WHERE (description) = (?)", (description,)).fetchone()
@@ -305,4 +311,7 @@ class JobManager:
                         "INSERT INTO job (title,description,site,url,company,location,rank) VALUES (?,?,?,?,?,?,?)",
                         (job.title, job.description, job.site, job.url, job.company.id, job.location.id, job.rank))
                     con.commit()
+                    print("Saved:", job.title)
+                else:
+                    print("Already in database: ", job.title)
                 self.jobs.add(job)

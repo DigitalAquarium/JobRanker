@@ -1,10 +1,12 @@
 import asyncio
+import random
+
 from job import Job
 import playwright.async_api
 from os import mkdir
 
 
-async def get_context(browser, site, url):
+async def get_context(browser, site, url) -> tuple[playwright.async_api.BrowserContext, playwright.async_api.Page]:
     context = await browser.new_context(storage_state=".auth/" + site + ".json")
     page = await context.new_page()
     await page.goto(url)
@@ -40,7 +42,7 @@ class JobBoardScraper:
         await temp.stop()
         return
 
-    async def get_context(self):
+    async def get_context(self) -> tuple[playwright.async_api.BrowserContext, playwright.async_api.Page]:
         if self.browser is None:
             await self.setup()
         try:
@@ -55,17 +57,18 @@ class JobBoardScraper:
             print(text, jbl in links)
             links.add(jbl)
 
-    async def process_search_result_page(self, page, link_set, lock):
+    async def process_search_result_page(self, page: playwright.async_api.Page, link_set: set,
+                                         lock: asyncio.Lock) -> bool:
         # returns true if there are more pages, else false.
         return False
 
-    async def next_page(self, page):
+    async def next_page(self, page: playwright.async_api.Page):
         pass
 
-    async def get_recommendations(self, link_set, lock):
+    async def get_recommendations(self, link_set: set, lock: asyncio.Lock, no_pages=0):
         pass
 
-    async def get_search_results(self, link_set, lock, search_term, no_pages):
+    async def get_search_results(self, link_set: set, lock: asyncio.Lock, search_term, no_pages):
         pass
 
 
@@ -78,6 +81,24 @@ class JobBoardLink:
         self.site = site
 
     async def scrape(self, browser, semaphore, job_manager):
+        num = random.uniform(0.2, 10) * 10
+        await asyncio.sleep(num)
+        async with semaphore:
+            num = random.random() * 4 + 2
+            await asyncio.sleep(num)
+            context, page = await get_context(browser, self.site, self.link)
+
+            details = await self.get_details(page)
+
+            await job_manager.add(title=details["title"], description=details["description"],
+                                  company=details["company"], url=self.link, site=self.site,
+                                  location=details["location"])
+            await page.close()
+            await context.close()
+            return
+
+    async def get_details(self, page: playwright.async_api.Page):
+        # Should return a dictionary with job title, description, company and location.
         raise NotImplementedError
 
     def __hash__(self):
