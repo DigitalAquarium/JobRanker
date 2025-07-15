@@ -1,14 +1,15 @@
-from playwright.async_api import expect
-
-from common import *
 import playwright.async_api
 
+from common import *
 from job_board import JobBoardScraper, JobBoardLink
 
 
 class EFinancialCareersLink(JobBoardLink):
     async def get_details(self, page):
-        title = page.get_by_role("heading", level=1)
+        title = page.get_by_role("heading", level=1).first
+        if await title.inner_text() == "The Personal Information Protection Law (PIPL) came into force on November 1st.":
+            # Oops! I think we may have annoyed them slightly! (403)
+            return {"title": "Senior", "description": "description", "company": "", "location": ""}
         try:
             location = await title.locator("xpath=../span[2]").inner_text(timeout=5000)
             company = await title.locator("xpath=../span[1]").inner_text(timeout=5000)
@@ -24,6 +25,7 @@ class EFinancialCareersLink(JobBoardLink):
 class EFinancialCareers(JobBoardScraper):
     site_url = "https://www.efinancialcareers.co.uk"
     site_name = "eFinancialCareers"
+    next_first = True
 
     async def process_search_result_page(self, page, link_set, lock):
         for job in await page.locator("efc-job-card").all():
@@ -31,59 +33,25 @@ class EFinancialCareers(JobBoardScraper):
             text = await title.inner_text()
             href = await title.locator("> a").get_attribute("href")
             href = href.split("?")[0]
-            company = await job.locator(".company").inner_text()
+            try:
+                company = await job.locator(".company").inner_text(timeout=5000)
+            except playwright.async_api.TimeoutError:
+                company = "eFinancialCareers: Non-Disclosed Client"
+
             if Job.test_blacklist(text, company=company):
                 async with lock:
                     link_set.add(EFinancialCareersLink(href, self.site_name))
         return
 
-    async def next_page(self, page):
-        next_button = page.get_by_text("Show more")
-        if await next_button.is_visible():
-            await next_button.click()
-            return True
-        else:
-            return False
+    def get_next_button(self, page: playwright.async_api.Page) -> playwright.async_api.Locator:
+        return page.get_by_text("Show more")
 
-    async def get_search_results(self, link_set, lock, search_term, no_pages):
-        context, page = await self.get_context()
+    async def get_recommendations(self, link_set: set, lock: asyncio.Lock, sem: asyncio.Semaphore, no_pages=0):
+        return
+
+    async def go_to_search(self, page, search_term):
         await asyncio.sleep(2)
         await page.get_by_placeholder("Job title").type(search_term)
         await page.keyboard.press("Enter")
         await asyncio.sleep(4)
-        if no_pages == 0:
-            no_pages = 100000
-        for i in range(no_pages):
-            await asyncio.sleep(2)
-            if not await self.next_page(page):
-                break
-        print("a")
-        await self.process_search_result_page(page, link_set, lock)
-        print("b")
-        await page.close()
-        await context.close()
         return
-
-
-'''async def main():
-    x = EFinancialCareers()
-    s = set()
-    l = asyncio.Lock()
-    jm = JobManager()
-    soft = asyncio.create_task(x.get_search_results(s, l, "graduate software engineer", 5))
-    #await asyncio.gather(x.get_recommendations(s, l, 1))
-    await asyncio.gather(soft)
-    for link in s:
-        print(link.link)
-    l = []
-    temp = await playwright.async_api.async_playwright().start()
-    browser = await temp.chromium.launch(headless=False)
-    NUM_THREADS = 5
-    sem = asyncio.Semaphore(NUM_THREADS)
-    for x in s:
-        l.append(asyncio.create_task(x.scrape(browser, sem, jm)))
-    await asyncio.gather(*l)  # x.scrape(jm) for x in s
-
-
-asyncio.run(main())
-'''

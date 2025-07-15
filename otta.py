@@ -51,36 +51,41 @@ class Otta(JobBoardScraper):
         else:
             return True
 
-    async def get_recommendations(self, link_set, lock, no_pages=0):
-        context, page = await self.get_context()
-        await asyncio.sleep(2)
-        if await page.get_by_test_id("ALL_MATCHES").is_visible():
-            await page.get_by_test_id("ALL_MATCHES").click()
-        else:
+    async def get_recommendations(self, link_set, lock, sem, no_pages=0):
+        async with sem:
+            context, page = await self.get_context()
+            await asyncio.sleep(2)
+            if await page.get_by_test_id("ALL_MATCHES").is_visible():
+                await page.get_by_test_id("ALL_MATCHES").click()
+            else:
+                await page.close()
+                await context.close()
+                return
+            await page.get_by_test_id("modal-remove-button").click()
+            if await page.locator("xpath=//*[@id='radix-:rp:']/div/div/div/button[2]").is_visible():
+                await page.locator("xpath=//*[@id='radix-:rp:']/div/div/div/button[2]").click()
+                await asyncio.sleep(1)
+            while True:
+                web_title = await page.get_by_test_id("job-title").inner_text()
+                web_title = web_title.split(", ")
+                company = web_title[-1]
+                title = ""
+                for i in web_title[:-1]:
+                    title += i + ", "
+                title = title[:-2]
+                full_description = await page.locator(
+                    '//*[@id="root"]/div[1]/div/div/div[1]/div/div[2]/div/div[2]/div/div[1]/div[1]/div').inner_text()
+                async with lock:
+                    if Job.test_blacklist(title, company=company, full_description=full_description):
+                        link_set.add(OttaLink(page.url, self.site_name))
+                if not await self.next_page(page):
+                    break
             await page.close()
             await context.close()
             return
-        await page.get_by_test_id("modal-remove-button").click()
-        if await page.locator("xpath=//*[@id='radix-:rp:']/div/div/div/button[2]").is_visible():
-            await page.locator("xpath=//*[@id='radix-:rp:']/div/div/div/button[2]").click()
-            await asyncio.sleep(1)
-        while True:
-            web_title = await page.get_by_test_id("job-title").inner_text()
-            web_title = web_title.split(", ")
-            company = web_title[-1]
-            title = ""
-            for i in web_title[:-1]:
-                title += i + ", "
-            title = title[:-2]
-            full_description = await page.locator(
-                '//*[@id="root"]/div[1]/div/div/div[1]/div/div[2]/div/div[2]/div/div[1]/div[1]/div').inner_text()
-            async with lock:
-                if Job.test_blacklist(title, company=company, full_description=full_description):
-                    link_set.add(OttaLink(page.url, self.site_name))
-            if not await self.next_page(page):
-                break
-        await page.close()
-        await context.close()
+
+    async def get_search_results(self, link_set: set, lock: asyncio.Lock, sem: asyncio.Semaphore, search_term,
+                                 no_pages=0):
         return
 
 

@@ -27,7 +27,7 @@ class GradCracker(JobBoardScraper):
     site_name = "Gradcracker"
     run_flag = False
 
-    async def get_recommendations(self, link_set, lock,no_pages=0):
+    async def get_recommendations(self, a, b, c, d=0):
         return
 
     async def process_search_result_page(self, page: playwright.async_api.Page, link_set, lock):
@@ -38,56 +38,27 @@ class GradCracker(JobBoardScraper):
                 async with lock:
                     link_set.add(GradCrackerLink(await head.get_attribute("href"), self.site_name))
 
-    async def next_page(self, page):
-        next_button = page.locator("css=a[rel='next']")
-        if await next_button.is_visible():
-            await next_button.click()
-            return True
-        else:
-            return False
+    def get_next_button(self, page):
+        return page.locator("css=a[rel='next']")
 
-    async def get_search_results(self, link_set, lock, search_term, no_pages):
-
+    async def get_search_results(self, link_set, lock, sem, search_term, no_pages=0):
         # Gradcracker works a little differently, so instead of searching for a term, you'd search by discipline.
         # Doing this means we're actually going to discard the search term and check against the flag for whether
         # we've done a search or not.
-        async with lock:
-            if not GradCracker.run_flag:
-                context, page = await self.get_context()
-                await page.goto("https://www.gradcracker.com/search/computing-technology/graduate-jobs")
-                GradCracker.run_flag = True
-            else:
-                return
+        async with sem:
+            async with lock:
+                if not GradCracker.run_flag:
+                    context, page = await self.get_context()
+                    await page.goto("https://www.gradcracker.com/search/computing-technology/graduate-jobs")
+                    GradCracker.run_flag = True
+                else:
+                    return
 
-        # We're going to check everything and throw out the no_pages variable too, what a shame!
-        while True:
-            await self.process_search_result_page(page, link_set, lock)
-            if not await self.next_page(page):
-                break
-        await page.close()
-        await context.close()
-        return
-
-
-'''async def main():
-    x = GradCracker()
-    s = set()
-    l = asyncio.Lock()
-    jm = JobManager()
-    soft = asyncio.create_task(x.get_search_results(s, l, "graduate software engineer", 0))
-    # cyber = asyncio.create_task(x.get_search_results(s, l, "graduate cyber security", 0))
-    await asyncio.gather(soft)  # x.get_recommendations(s, l), soft, cyber)
-    for link in s:
-        print(link.link)
-    l = []
-    temp = await playwright.async_api.async_playwright().start()
-    browser = await temp.chromium.launch(headless=False)
-    NUM_THREADS = 5
-    sem = asyncio.Semaphore(NUM_THREADS)
-    for x in s:
-        l.append(asyncio.create_task(x.scrape(browser, sem, jm)))
-    await asyncio.gather(*l)  # x.scrape(jm) for x in s
-
-
-asyncio.run(main())
-'''
+            # We're going to check everything and throw out the no_pages variable too, what a shame!
+            while True:
+                await self.process_search_result_page(page, link_set, lock)
+                if not await self.next_page(page):
+                    break
+            await page.close()
+            await context.close()
+            return

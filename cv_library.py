@@ -29,19 +29,20 @@ class CVLibrary(JobBoardScraper):
     site_url = "https://www.cv-library.co.uk"
     site_name = "CVLibrary"
 
-    async def get_recommendations(self, link_set, lock,no_pages=0):
-        context, page = await self.get_context()
-        recs = await page.locator(".hp-job-matches-slide li").all()
-        for rec in recs:
-            atag = rec.locator("a")
-            text = await atag.inner_text()
-            href = await atag.get_attribute("href")
-            async with lock:
-                if Job.test_blacklist(text):
-                    link_set.add(CVLibraryLink(self.site_url + href, self.site_name))
-        await page.close()
-        await context.close()
-        return
+    async def get_recommendations(self, link_set, lock, sem, no_pages=0):
+        async with sem:
+            context, page = await self.get_context()
+            recs = await page.locator(".hp-job-matches-slide li").all()
+            for rec in recs:
+                atag = rec.locator("a")
+                text = await atag.inner_text()
+                href = await atag.get_attribute("href")
+                async with lock:
+                    if Job.test_blacklist(text):
+                        link_set.add(CVLibraryLink(self.site_url + href, self.site_name))
+            await page.close()
+            await context.close()
+            return
 
     async def process_search_result_page(self, page, link_set, lock):
         await asyncio.sleep(5)
@@ -55,26 +56,11 @@ class CVLibrary(JobBoardScraper):
                 async with lock:
                     link_set.add(CVLibraryLink(self.site_url + href, self.site_name))
 
-    async def next_page(self, page):
-        next_button = page.locator("css=.pagination__next")
-        if await next_button.is_visible():
-            await next_button.click()
-            return True
-        else:
-            return False
+    def get_next_button(self, page):
+        return page.locator("css=.pagination__next")
 
-    async def get_search_results(self, link_set, lock, search_term, no_pages):
-        context, page = await super().get_context()
-        if not no_pages:
-            no_pages = 100000
+    async def go_to_search(self, page, search_term):
         await page.get_by_placeholder("Keywords / Job Title / Job Ref").fill(search_term)
         await page.get_by_placeholder("Location").fill("Shepherds Bush, Greater London")
         await page.get_by_role("button", name="Find jobs").click()
-        for i in range(no_pages):
-            await self.process_search_result_page(page, link_set, lock)
-            if not await self.next_page(page):
-                break
-
-        await page.close()
-        await context.close()
         return

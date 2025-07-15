@@ -44,12 +44,11 @@ class ReedLink(JobBoardLink):
                 raise Exception("REED DID AN OOPSIE")
 
 
-
 class Reed(JobBoardScraper):
     site_url = "https://www.reed.co.uk"
     site_name = "Reed"
 
-    async def get_recommendations(self, link_set, lock,no_pages=0):
+    async def get_recommendations(self, link_set, lock, sem, no_pages=0):
         # playwright doesn't like logging in to reed (I blame cloudflare) so we're falling back on selinium for
         # portions where we need to be logged in (boring)
         driver = webdriver.Firefox()
@@ -115,40 +114,7 @@ class Reed(JobBoardScraper):
         else:
             return True
 
-    async def get_search_results(self, link_set, lock, search_term, no_pages):
-        context, page = await self.get_context()
-        if not no_pages:
-            no_pages = 100000
+    async def go_to_search(self, page, search_term):
         await page.locator("#main-keywords").fill(search_term)
         await page.get_by_role("button", name="Search jobs").click()
-        for i in range(no_pages):
-            await self.process_search_result_page(page, link_set, lock)
-            if not await self.next_page(page):
-                break
-
-        await page.close()
-        await context.close()
         return
-
-
-'''async def main():
-    x = Reed()
-    s = set()
-    l = asyncio.Lock()
-    jm = JobManager()
-    soft = asyncio.create_task(x.get_search_results(s, l, "graduate software engineer", 0))
-    # cyber = asyncio.create_task(x.get_search_results(s, l, "graduate cyber security", 0))
-    await asyncio.gather(soft)#x.get_recommendations(s, l))#, soft, cyber)
-    for link in s:
-        print(link.link)
-    l = []
-    temp = await playwright.async_api.async_playwright().start()
-    browser = await temp.chromium.launch(headless=False)
-    NUM_THREADS = 5
-    sem = asyncio.Semaphore(NUM_THREADS)
-    for x in s:
-        l.append(asyncio.create_task(x.scrape(browser, sem, jm)))
-    await asyncio.gather(*l)  # x.scrape(jm) for x in s
-
-
-asyncio.run(main())'''

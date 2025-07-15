@@ -41,7 +41,7 @@ db_write_lock = asyncio.Lock()
 
 
 class Company:
-    RECRUITERS = ["efinancialcareers", "hunter bond", "itol recruit", "itol"]
+    RECRUITERS = ["efinancialcareers", "hunter bond", "itol recruit", "itol", "targetjobs UK"]
     name = ""
     summary = ""
     url = ""
@@ -315,3 +315,27 @@ class JobManager:
                 else:
                     print("Already in database: ", job.title)
                 self.jobs.add(job)
+
+    @staticmethod
+    async def db_link_set():
+        db_urls = cur.execute("SELECT url FROM job")
+        the_set = set()
+
+        class Bringus:
+            def __init__(self, url):
+                self.link = url
+
+            def __eq__(self, other):
+                return self.link == other.link
+
+            def __hash__(self):
+                return hash(self.link)
+
+        for l in db_urls:
+            jbl = Bringus(l[0])
+            the_set.add(jbl)
+        return the_set
+
+
+jm = JobManager()
+asyncio.run(jm.db_link_set())
