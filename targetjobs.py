@@ -11,8 +11,17 @@ from job_board import JobBoardScraper, JobBoardLink
 class TargetJobsLink(JobBoardLink):
     async def get_details(self, page):
         title = await page.get_by_role("heading", level=1).inner_text()
-        location = await page.locator("xpath=//*[@id='main-content']/main/div[2]/div[2]/div/div/div/p[2]").inner_text()
-        company = await page.locator("xpath=//*[@id='main-content']/main/div[1]/div/div/div[1]/div[1]/div[2]").inner_text()
+        location = "United Kingdom"
+        location_candidates = await page.locator("xpath=//*[@id='main-content']/main/div[2]/div[2]/div/div/div/p[2]").all()
+        for location_candidate in location_candidates:
+            cand_txt = await location_candidate.inner_text()
+            if not any([i in cand_txt for i in "0123456789"]):
+                location = cand_txt
+        try:
+            company = await page.locator("xpath=//*[@id='main-content']/main/div[1]/div/div/div[1]/div[1]/div[2]").inner_text(timeout=5000)
+        except:
+            company = await page.locator(
+                'xpath=//*[@id="main-content"]/main/div[1]/div/div/div[1]/div[1]/div/a').inner_text(timeout=5000)
         description = await page.locator("xpath=//*[@id='main-content']/main/div[2]/div[1]/div[2]").inner_text()
         return {"title": title, "description": description, "company": company, "location": location}
 

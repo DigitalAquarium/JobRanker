@@ -41,7 +41,7 @@ db_write_lock = asyncio.Lock()
 
 
 class Company:
-    RECRUITERS = ["efinancialcareers", "hunter bond", "itol recruit", "itol", "targetjobs UK"]
+    RECRUITERS = ["efinancialcareers", "hunter bond", "itol recruit", "itol", "targetjobs uk"]
     name = ""
     summary = ""
     url = ""
@@ -155,8 +155,9 @@ class Location:
 
 class Job:
     term_blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "mandarin", "phd", "vp ",
-                      "manager", " vp", "mid level", "founding"]
-    term_whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security", "cybersecurity"]
+                      "manager", " vp", "mid level", "founding", "sr."]
+    term_whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security", "cybersecurity",
+                      "application engineer"]
     terms_dict = {
         20: ["graduate scheme", "robotics", "robot"],
         10: ["python", "java", "graduate", "entry level", "entry-level", " ros ", "django", "team", "teamwork",

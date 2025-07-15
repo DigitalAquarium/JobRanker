@@ -147,14 +147,14 @@ class JobBoardLink:
             num = random.random() * 2 + 2
             await asyncio.sleep(num)
             try:
-
                 details = await self.get_details(page)
 
                 await job_manager.add(title=details["title"], description=details["description"],
                                       company=details["company"], url=self.link, site=self.site,
                                       location=details["location"])
             except Exception as e:
-                print("UH OH!!!", e)
+                #raise e
+                print("UH OH!!! @ ",self.link,"\n", e)
 
             await page.close()
             await context.close()

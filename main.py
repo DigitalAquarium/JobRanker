@@ -4,6 +4,7 @@ from cv_library import CVLibrary
 from gradcracker import GradCracker
 from linkedin import Linkedin
 from reed import Reed
+from milkround import Milkround
 from otta import Otta
 from eFinancialCareers import EFinancialCareers
 import playwright.async_api
@@ -25,10 +26,10 @@ async def main():
     link_set = set()
     link_lock = asyncio.Lock()
     jm = JobManager()
-    site_managers = [TargetJobs]#Linkedin, GradCracker, CVLibrary, Otta, GradCracker, Reed, EFinancialCareers]
+    site_managers = [Milkround,TargetJobs, Linkedin, GradCracker, CVLibrary, Otta, GradCracker, Reed, EFinancialCareers]
     search_terms = ["graduate software engineer", "junior software developer", "graduate cyber security"]
     task_list = []
-    NUM_THREADS = 1
+    NUM_THREADS = 7
     sem = asyncio.Semaphore(NUM_THREADS)
     PAGE_SEARCH_LIMIT = 10
     for term in search_terms:
@@ -47,7 +48,7 @@ async def main():
     await asyncio.sleep(2)
     link_list = list(link_set)
     random.shuffle(link_list)
-    for link in link_set:
+    for link in link_list:
         print(link.link)
     link_tasks = []
     temp = await playwright.async_api.async_playwright().start()
