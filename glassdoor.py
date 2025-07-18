@@ -25,6 +25,7 @@ class Glassdoor(JobBoardScraper):
     site_url = "https://www.glassdoor.co.uk"
     site_name = "Glassdoor"
     next_first = True
+    browser_name = "Firefox"
 
     async def process_search_result_page(self, page, link_set, lock):
         await asyncio.sleep(random.random()*3+3)

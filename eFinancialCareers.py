@@ -44,13 +44,13 @@ class EFinancialCareers(JobBoardScraper):
         return
 
     def get_next_button(self, page: playwright.async_api.Page) -> playwright.async_api.Locator:
-        return page.get_by_text("Show more")
+        return page.get_by_text("Show more").first
 
     async def get_recommendations(self, link_set: set, lock: asyncio.Lock, sem: asyncio.Semaphore, no_pages=0):
         return
 
     async def go_to_search(self, page, search_term):
-        await asyncio.sleep(2)
+        await asyncio.sleep(4)
         await page.get_by_placeholder("Job title").type(search_term)
         await page.keyboard.press("Enter")
         await asyncio.sleep(4)
