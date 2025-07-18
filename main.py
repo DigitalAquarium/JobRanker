@@ -1,11 +1,14 @@
 import random
 
+from adzuna_api import Adzuna_Api
 from cv_library import CVLibrary
+from glassdoor import Glassdoor
 from gradcracker import GradCracker
 from linkedin import Linkedin
 from reed import Reed
 from milkround import Milkround
 from otta import Otta
+from monster import Monster
 from eFinancialCareers import EFinancialCareers
 import playwright.async_api
 from common import *
@@ -22,24 +25,33 @@ from targetjobs import TargetJobs
         await task'''
 
 
+async def wait_before(func, *args):
+    #await asyncio.sleep(random.randrange(1, 10) * 25 - random.randint(15, 20))
+    # await asyncio.sleep(3))
+    return await func(*args)
+
+
 async def main():
     link_set = set()
     link_lock = asyncio.Lock()
     jm = JobManager()
-    site_managers = [Milkround,TargetJobs, Linkedin, GradCracker, CVLibrary, Otta, GradCracker, Reed, EFinancialCareers]
-    search_terms = ["graduate software engineer", "junior software developer", "graduate cyber security"]
+    site_managers = [
+        Adzuna_Api]  # [Linkedin, Milkround, TargetJobs, GradCracker,Glassdoor, CVLibrary, Otta, GradCracker, Reed, EFinancialCareers]
+    search_terms = ["graduate cyber security"]  # , "graduate software engineer", "junior software developer"]
     task_list = []
-    NUM_THREADS = 7
+    NUM_THREADS = 1
     sem = asyncio.Semaphore(NUM_THREADS)
     PAGE_SEARCH_LIMIT = 10
     for term in search_terms:
         for manager in site_managers:
             manager = manager()
             task_list.append(
-                asyncio.create_task(manager.get_search_results(link_set, link_lock, sem, term, PAGE_SEARCH_LIMIT)))
+                asyncio.create_task(
+                    wait_before(manager.get_search_results, link_set, link_lock, sem, term, PAGE_SEARCH_LIMIT)))
     for manager in site_managers:
         manager = manager()
-        task_list.append(asyncio.create_task(manager.get_recommendations(link_set, link_lock, sem, PAGE_SEARCH_LIMIT)))
+        task_list.append(
+            asyncio.create_task(wait_before(manager.get_recommendations, link_set, link_lock, sem, PAGE_SEARCH_LIMIT)))
     await asyncio.gather(*task_list)
     print("Found", len(link_set), "jobs...")
     existing_link_set = await JobManager.db_link_set()
@@ -54,7 +66,7 @@ async def main():
     temp = await playwright.async_api.async_playwright().start()
     browser = await temp.chromium.launch(headless=False)
     for link in link_list:
-        link_tasks.append(asyncio.create_task(link.scrape(browser, sem, jm)))
+        link_tasks.append(asyncio.create_task(wait_before(link.scrape, browser, sem, jm)))
     await asyncio.gather(*link_tasks)
     return
 
