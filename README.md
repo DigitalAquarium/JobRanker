@@ -1,2 +1,2 @@
 # JobRanker
-Fixes job board's inability to make a working search functoin
+Fixes job board's inability to make a working search function
