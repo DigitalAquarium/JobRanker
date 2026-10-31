@@ -1,7 +1,7 @@
 import asyncio
 import sqlite3
-from gemini import prompt
-from maps import get_distance
+from JobRanker.llm_manager import prompt
+from jobs.maps import get_distance
 
 con = sqlite3.connect("job_ranker.sqlite3")
 cur = con.cursor()

@@ -9,7 +9,7 @@ from job_board import JobBoardScraper, JobBoardLink, get_context
 from common import *
 from linkedin import LinkedinLink
 from eFinancialCareers import EFinancialCareersLink
-from reed import ReedLink
+from jobs.processors.reed import ReedLink
 from cv_library import CVLibraryLink
 from glassdoor import GlassdoorLink
 from milkround import MilkroundLink, TotalJobsLink, CWJobsLink

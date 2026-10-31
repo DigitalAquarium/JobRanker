@@ -199,3 +199,6 @@ cython_debug/
 #mystuff
 job_ranker.sqlite3
 .auth/
+.secrets
+*__init__.py
+*/migrations/*

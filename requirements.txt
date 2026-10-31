@@ -1,8 +1,9 @@
-selenium~=4.33.0
+django
+selenium
 dotenv~=0.9.9
-python-dotenv~=1.1.0
+python-dotenv~=1.0.1
 openai~=1.90.0
 googlemaps~=4.10.0
-playwright~=1.53.0
-flask[async]~=3.1.1
-requests~=2.32.4
+playwright
+flask[async]
+requests

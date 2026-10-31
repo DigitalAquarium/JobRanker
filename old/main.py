@@ -5,7 +5,7 @@ from cv_library import CVLibrary
 from glassdoor import Glassdoor
 from gradcracker import GradCracker
 from linkedin import Linkedin
-from reed import Reed
+from jobs.processors.reed import Reed
 from milkround import Milkround
 from otta import Otta
 from monster import Monster
