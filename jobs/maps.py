@@ -2,15 +2,15 @@ from math import sqrt
 
 from dotenv import load_dotenv
 import googlemaps
-from time import time
+from JobRanker.settings import SECRETS
 import os
 
 load_dotenv()
 
-origin_point = os.getenv("ZERO_LOCATION")
-origin_point = origin_point.split(",")
+origin_point = SECRETS["zero_location"]
+origin_point = origin_point.split("|")
 origin_point = [float(origin_point[0]), float(origin_point[1])]
-gmaps = googlemaps.Client(key=os.getenv("MAPS_API"))
+gmaps = googlemaps.Client(SECRETS["maps"])
 
 
 def get_distance(location_name):

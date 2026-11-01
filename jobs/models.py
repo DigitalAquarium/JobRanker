@@ -4,12 +4,14 @@
 #https://www.peopledatalabs.com/job-posting-data
 
 from django.db import models
-from llm_manager import prompt
-from maps import get_distance
 
-class Terms():
-    blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "mandarin", "phd", "vp ",
-                      "manager", " vp", "mid level", "founding", "sr.", "chief" " ii", " iv"]
+from JobRanker.llm_manager import prompt
+from jobs.maps import get_distance
+
+class Terms:
+    blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "vp ",
+                      "manager", " vp", "mid level", "founding", "sr.", "chief" " ii", " iv"] #These terms should not appear in the title
+    super_blacklist = ["mandarin"," phd "," phd. "," fee "," fees "] #these terms should not appear in the description
     whitelist = ["software", "developer", "python", "java", "graduate program", "cyber security", "cybersecurity",
                       "application engineer"]
     ratings = {
@@ -29,28 +31,28 @@ class Terms():
 
 
 class Company(models.Model):
-    BLACKLIST = ["efinancialcareers", "hunter bond", "itol recruit", "itol", "targetjobs uk"] # For recruiters / job boards or other such reposters
+    BLACKLIST = ["efinancialcareers", "hunter bond", "itol recruit", "itol", "targetjobs uk","it career switch"] # For recruiters / job boards or other such reposters
     name = models.CharField(max_length=255,blank=False,unique=True)
     summary = models.CharField(blank=False)
     url = models.URLField(blank=True)
 
     @staticmethod
-    def fetch(name:String):
+    def fetch(name):
         name = name.lower()
-        if self.name == "" or self.name.lower() in Company.BLACKLIST:
-            return Company.get(name="Broken Company :(")
+        if name == "" or name.lower() in Company.BLACKLIST:
+            return Company.objects.get(name="Broken Company :(")
         else:
             try:
-                existing_company = Company.get(name=name)
+                existing_company = Company.objects.get(name=name)
                 return existing_company
-            except models.Model.DoesNotExist:
+            except:
                 c = Company()
                 c.name = name
                 company_info = prompt(c.name)
                 company_info = company_info.split("|")
                 c.summary = company_info[0]
                 try:
-                    self.url = company_info[1].replace(" ", "")
+                    c.url = company_info[1].replace(" ", "")
                 except:
                     prompt("COMPANY_NAME:\n" + c.name)
                     company_info = company_info.split("|")
@@ -69,25 +71,44 @@ class Company(models.Model):
     def is_broken(self):
         return self.name == "Broken Company :("
 
+class LocationMapping(models.Model):
+    name = models.CharField(max_length=255, blank=False, unique=True)
+    simple = models.CharField(max_length=255, blank=False)
+
+    @staticmethod
+    def fetch(name):
+        try:
+            existing_location = LocationMapping.objects.get(name=name)
+            return existing_location.simple
+        except:
+            simple = prompt(name, prompt_type="location")
+            simple = simple.lower()
+            lm = LocationMapping()
+            lm.name = name
+            lm.simple = simple
+            lm.save()
+            return simple
+    def __str__(self):
+        return self.name + " -> " + self.simple
+
 class Location(models.Model):
     name = models.CharField(max_length=255,blank=False,unique=True)
     distance_score = models.FloatField(default=-50,blank=False)
 
     @staticmethod
     def fetch(name):
-        if self.name == "":
-            return Location.get(name="Unknown Location")
+        if name == "":
+            return Location.objects.get(name="Unknown Location")
         name = name.lower()
         try:
-            existing_location = Location.get(name=name)
+            existing_location = Location.objects.get(name=name)
             return existing_location
-        except models.Model.DoesNotExist:
-            name = prompt(self.name, prompt_type="location")
-            name = name.lower()
+        except:
+            name = LocationMapping.fetch(name)
             try:
-                existing_location = Location.get(name=name)
+                existing_location = Location.objects.get(name=name)
                 return existing_location
-            except models.Model.DoesNotExist:
+            except:
                 distance = get_distance(name)
                 if distance > 3:
                     # Location is not in the uk, or nearby european countries.
@@ -102,6 +123,10 @@ class Location(models.Model):
                 new_location.save()
                 return new_location
 
+    @staticmethod
+    def remote():
+        Location.objects.get_or_create(name="remote", distance_score=10)
+
     def __repr__(self):
         return self.name
 
@@ -112,16 +137,13 @@ class Location(models.Model):
         return self.name == other.name
 
     def __hash__(self):
-        if not self.initialised:
-            raise ValueError
-        else:
-            return hash(self.name)
+        return hash(self.name)
 
 def get_broken_company():
-    return Company.get_or_create(name="Broken Company :(",summary="",url="crouton.net")
+    return Company.objects.get_or_create(name="Broken Company :(",summary="",url="crouton.net")
 
 def get_unknown_location():
-    return Location.get_or_create(name="Unknown Location",distance_score=-10)
+    return Location.objects.get_or_create(name="Unknown Location",distance_score=-10)
 
 class Job(models.Model):
     RANK_DEFAULT = -1000
@@ -133,7 +155,7 @@ class Job(models.Model):
     url =  models.URLField(blank=False)
     rank = models.FloatField(default=RANK_DEFAULT,blank=False)
     status = models.CharField(max_length=2, choices=STATUS_CHOICES, default="N",blank=False)
-    placement = models.BooleanField(default=True,blank=False)
+    placement = models.BooleanField(default=False,blank=False)
     salary = models.PositiveIntegerField(default=0,blank=False)
     deadline = models.DateField(blank=True)
     posted = models.DateField(blank=True)
@@ -141,6 +163,9 @@ class Job(models.Model):
     company = models.ForeignKey(Company, on_delete=models.SET_DEFAULT,default=get_broken_company,blank=False)
     location = models.ForeignKey(Location, on_delete=models.SET_DEFAULT,default=get_unknown_location,blank=False)
 
+
+    def set_placement(self):
+        self.placement =  "placement" in self.description + self.title
     def get_rank(self):
         rank = 0
         for term_pair in self.terms_dict.items():
@@ -216,22 +241,39 @@ class Job(models.Model):
     def __str__(self):
         return self.title + " | " + str(self.company) + " | " + self.description[:144] + "…"
 
-    @staticmethod
-    def test_blacklist(phrase, company=None, full_description=None):
-        phrase = phrase.lower()
+    def quick_check(self):
+        print(self.title)
+        if not self.passes_blacklist():
+            print("BLACKLIST")
+            return False
+        else:
+            self.description = self.description[:-3]# This removes any ellipses at the end of the file.
+            if Job.objects.filter(url=self.url).count() > 0:
+                print("URL FOUND")
+                return False
+            elif Job.objects.filter(description__contains=self.description).count() > 0:
+                print("DESCRIPTION FOUND")
+                return False
+            else:
+                print("OK")
+                return True
+
+
+    def passes_blacklist(self,full_description=False):
         passes = True
-        for term in Job.term_blacklist + ["lead"]:
-            if term in phrase.lower():
+        for term in Terms.blacklist:
+            if term in self.title.lower():
                 passes = False
                 break
-        if company is not None and company.lower() in Company.RECRUITERS:
+        for term in Terms.super_blacklist:
+            if term in self.title.lower() or term in self.description.lower():
+                passes = False
+                break
+        if full_description:
             passes = False
-        if full_description is not None:
-            passes = False
-            for term in Job.term_whitelist:
-                if term in full_description.lower():
+            for term in Terms.whitelist:
+                if term in self.description.lower():
                     passes = True
                     break
-
         return passes
 

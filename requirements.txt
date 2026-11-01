@@ -7,3 +7,4 @@ googlemaps~=4.10.0
 playwright
 flask[async]
 requests
+BeautifulSoup4

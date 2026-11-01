@@ -1,18 +1,29 @@
 #from os import environ
 from openai import OpenAI
-#from time import time
+from JobRanker.settings import SECRETS
+from time import time, sleep
 
-GEMINI_KEY = settings.secrets["gemini"]
+GEMINI_KEY = SECRETS["gemini"]
 
-client = OpenAI(api_key=GEMINI_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+gemini_endpoint = OpenAI(api_key=GEMINI_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/",timeout=60)
+groq_endpoint = OpenAI(api_key=SECRETS["groq"], base_url="https://api.groq.com/openai/v1")
+
+models = [{"name":"openai/gpt-oss-120b","endpoint":groq_endpoint,"rate_limit":30},
+          {"name":"gemini-2.5-flash-lite","endpoint":gemini_endpoint,"rate_limit":15},
+          {"name":"gemini-3.5-flash-lite","endpoint":gemini_endpoint,"rate_limit":15},
+          {"name":"gemini-3.1-flash-lite","endpoint":gemini_endpoint,"rate_limit":15},
+          {"name":"gemini-2.5-flash","endpoint":gemini_endpoint,"rate_limit":15},
+          {"name":"openai/gpt-oss-20b","endpoint":groq_endpoint,"rate_limit":30},
+          {"name":"qwen/qwen3.8-27b","endpoint":groq_endpoint,"rate_limit":30},
+          {"name":"gemini-3.6-flash","endpoint":gemini_endpoint,"rate_limit":5},
+          {"name":"gemini-3.8-flash","endpoint":gemini_endpoint,"rate_limit":5},
+]
 
 last_polled = time()
-
-models = {"https://api.groq.com/openai/v1":{"openai/gpt-oss-120b":(30,200000),"openai/gpt-oss-20b":(30,200000),"qwen/qwen3.8-27b":(30,200000)},
-        "https://generativelanguage.googleapis.com/v1beta/openai/":{"gemini-3.8-flash":(20000,None)}
-          }
+model = models.pop(0)
 
 def prompt(content, prompt_type="company", arg_prompt=""):
+    global model
     match prompt_type:
         case "company":
             dev_prompt = "You are an assistant for a user who is currently searching for work. Your role is to take a " \
@@ -35,11 +46,32 @@ def prompt(content, prompt_type="company", arg_prompt=""):
         case _:
             dev_prompt = ""
 
-    response = client.chat.completions.create(
-        model="gemini-3.8-flash",
-        messages=[
-            {"role": "developer", "content": dev_prompt},
-            {"role": "user", "content": content}
-        ]
-    )
+    while len(models) > 0:
+        retrys = 2
+        complete = False
+        while retrys > 0:
+            print("Asking",model["name"],"About:", content)
+            interval = last_polled - time()
+            grace = (model["rate_limit"] / 60) - interval
+            if grace > -0.2:
+                sleep(grace + 0.5)
+            try:
+                response = model["endpoint"].chat.completions.create(
+                    model=model["name"],
+                    reasoning_effort="low",
+                    messages=[
+                        {"role": "developer", "content": dev_prompt},
+                        {"role": "user", "content": content}
+                    ]
+                )
+                complete=True
+                break
+            except:
+                retrys -= 1
+        if complete:
+            break
+        else:
+            model = models.pop(0)
+
+    print("Got Answer")
     return response.choices[0].message.content.replace("\n", "")

@@ -130,7 +130,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 SECRETS_TYPE = "file"
 SECRETS = {}
 if SECRETS_TYPE == "file":
-    fo = open(".secrets")
-    for line in secrets:
+    fo = open(".secrets","r")
+    for line in fo:
         x = line.split(",")
-        SECRETS[x[0]] = x[1]
+        SECRETS[x[0]] = x[1].replace("\n","")
+    fo.close()
