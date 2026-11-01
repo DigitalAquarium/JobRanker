@@ -15,8 +15,8 @@ class CompanyAdmin(admin.ModelAdmin):
     search_fields = ['name']
 
 
-@admin.register(LocationMapping)
-class LocationMappingAdmin(admin.ModelAdmin):
+@admin.register(PreciseLocation)
+class PreciseLocationAdmin(admin.ModelAdmin):
     search_fields = ['name']
 
 
