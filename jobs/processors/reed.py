@@ -31,6 +31,7 @@ class Reed(Processor):
                 if l["employerName"].lower() not in Company.BLACKLIST:
                     j = Job()
                     j.title = l["jobTitle"]
+                    j.set_salary(l["minimumSalary"],l["maximumSalary"])
                     if l["minimumSalary"]:
                         j.salary = (l["minimumSalary"] + l["maximumSalary"]) / 2
                     j.deadline = reformat_date(l["expirationDate"])
@@ -41,8 +42,6 @@ class Reed(Processor):
                     if j.quick_check():
                         j.company = Company.fetch(l["employerName"])
                         j.location = PreciseLocation.fetch(l["locationName"])
-                        if j.location.name != l["locationName"].lower():
-                            j.precise_location = l["locationName"]
                         print(j)
                         j.rank = j.get_word_rank()
                         j.save()
@@ -51,16 +50,21 @@ class Reed(Processor):
                 break
 
     @staticmethod
-    def evaluate(job):
-        Reed.l.wait()
-        jobID = job.url.split("/")[-1]
-        r = requests.get(f"{Reed.endpoint}jobs/{jobID}",auth=(SECRETS["reed"], ""))
-        r = json.loads(r.text)
-        if r["jobUrl"] != r["externalUrl"]:
-            job.url = r["externalUrl"]
-        job.description_html = r["jobDescription"]
-        soup = BeautifulSoup(job.description_html, "html.parser")
-        job.description = soup.get_text()
-        print(job.title,"|",job.get_rank())
+    def evaluate(job) -> tuple[bool,str]:
+        try:
+            Reed.l.wait()
+            jobID = job.url.split("/")[-1]
+            r = requests.get(f"{Reed.endpoint}jobs/{jobID}",auth=(SECRETS["reed"], ""))
+            r = json.loads(r.text)
+            if r["jobUrl"] != r["externalUrl"]:
+                job.url = r["externalUrl"]
+            job.description_html = r["jobDescription"]
+            soup = BeautifulSoup(job.description_html, "html.parser")
+            job.description = soup.get_text()
+            job.evaluate()
+            print(job.title,"-",job.location,"-","£"+str(job.salary),"|",job.status,job.rank)
+            return True, ""
+        except:
+            return False, "crawler"
         #job.save()
 

@@ -32,7 +32,7 @@ class Processor:
         # Save those jobs as complete / incomplete items to the database
         pass
     @staticmethod
-    def evaluate(job:Job) -> Job:
+    def evaluate(job:Job) -> tuple[bool,str]: #
         # This should be the main operation to finalise all details within a specific job
-        # Open up the URL for the job and get the full information, after that save it to the db and return it.
+        # Open up the URL for the job and get the full information, after that save it to the db and return success.
         pass

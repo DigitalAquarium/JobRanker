@@ -3,16 +3,18 @@
 #https://theirstack.com/en/docs/api-reference#tag/jobs/POST/v1/jobs/search
 #https://www.peopledatalabs.com/job-posting-data
 import math
+from datetime import date
 
 from django.db import models
 
 from JobRanker.llm_manager import prompt
 import jobs.maps as maps
-
+from currency_converter import CurrencyConverter
+cconv = CurrencyConverter()
 class Terms:
     blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "vp "," vp", "mid level", "founding", "sr.", "chief" " ii", " iv","mid level","mid-level","founding","sr.","chief", "staff",] #These terms should not appear in the title
     super_blacklist = ["mandarin"," phd "," phd. "," fee "," fees "] #these terms should not appear in the description
-    whitelist =  ["cyber security",
+    whitelist =  {"cyber security",
     "cybersecurity",
     "information security",
     "penetration testing",
@@ -39,7 +41,7 @@ class Terms:
     "threat intelligence",
     "threat hunting",
     "governance, risk and compliance",
-                  " grc ",
+                  " grc ","it security","ict security"
     "security governance",
     "security compliance",
     "security audit",
@@ -64,9 +66,8 @@ class Terms:
     "railway signalling security",
     "operational technology security",
     "graduate program",
-]
+    }
     ratings = {
-        30:["industrial placement","placement year","year in industry",],
         20: ["graduate scheme", "robotics", "robot", "penetration testing",
         "penetration tester","pen testing","pen tester","ethical hacking"],
         15:["security analyst","security operations centre", "devsecops","secure software development","software security","secure coding","embedded systems security",
@@ -114,6 +115,7 @@ class Terms:
         "bookmaker",
         "bookmaking",]
     }
+    graduate = {"graduate","entry-level", "entry level","apprentice","junior"}
     countries ={"united kingdom":3,"england":3,"scotland":3,"northern ireland":3,"wales":3,"netherlands":2,"holland":2,"the netherlands":2,"ireland":2,"belgium":2,"france":1,"germany":1,"switzerland":1,"luxembourg":1,"czechia":1,"austria":1,"denmark":1,"sweden":1,"iceland":1,"finland":1,"bulgaria":1,"croatia":1,"cyprus":1,"estonia":1,"greece":1,"hungary":1,"italy":1,"latvia":1,"lithuania":1,"malta":1,"poland":1,"portugal":1,"romania":1,"slovakia":1,"slovenia":1,"spain":1,"canada":1,"australia":1,"new zealand":1}
 
 
@@ -247,9 +249,9 @@ class PreciseLocation(models.Model):
             return precise
 
     def get_rank(self):
-        # Returns an 8-bit value, 2:country,6:location
+        # Returns an 7-bit value, 2:country,5:location
         glasgow_distance = 550
-        resolution = 6
+        resolution = 5
         max_value = (2 ** resolution) - 1
         if self.lat == 0:
             lat = self.location.lat
@@ -264,18 +266,16 @@ class PreciseLocation(models.Model):
             rating = max_value - 1
         elif self.location.name == "central london":
             rating = max_value - 2
-        elif self.location.name == "central london":
+        elif self.location.name == "east london":
             rating = max_value - 3
         elif self.location.name == "north london":
             rating = max_value - 4
-        elif self.location.name == "north london":
-            rating = max_value - 5
         elif self.location.name == "south london":
-            rating = max_value - 6
+            rating = max_value - 5
         elif self.location.name == "united kingdom":
             rating = 0
         else:
-            rating = max((max_value-7)-((max_value-7)/glasgow_distance)*distance,0) #-26.5*(distance**(1/4))+128
+            rating = max((max_value-6)-((max_value-6)/glasgow_distance)*distance,0) #-26.5*(distance**(1/4))+128
         rating = min(max_value, round(rating))
         if self.location.is_country:
             if self.location.name in Terms.countries:
@@ -322,17 +322,52 @@ class Job(models.Model):
     url =  models.URLField(blank=False)
     rank = models.FloatField(default=RANK_DEFAULT,blank=False)
     status = models.CharField(max_length=2, choices=STATUS_CHOICES, default="N",blank=False)
-    placement = models.BooleanField(default=False,blank=False)
-    salary = models.PositiveIntegerField(default=0,blank=False)
+    salary = models.PositiveIntegerField(default=35000,blank=False)
     deadline = models.DateField(blank=True)
     posted = models.DateField(blank=True)
-    precise_location = models.CharField(max_length=255,blank=True)
     company = models.ForeignKey(Company, on_delete=models.SET_DEFAULT,default=get_unknown_company,blank=False)
     location = models.ForeignKey(PreciseLocation, on_delete=models.SET_DEFAULT,default=get_unknown_precise_location,blank=False)
 
+    def is_placement(self):
+        text = (self.description + " " + self.title).lower()
+        return "placement" in text or "year in industry" in text
 
-    def set_placement(self):
-        self.placement = "placement" in self.description + self.title or "year in industry" in self.description + self.title
+    def set_salary(self,lb:int|str|None,ub:int|str|None=None,currency="GBP",period=None):
+        no_lb = lb is None or lb == 0 or lb == "" or lb == "0"
+        no_ub = ub is None or ub == 0 or ub == "" or ub == "0"
+        if no_lb and no_ub:
+            return
+        try:
+            if no_lb:
+                wage = int(ub)
+            elif no_ub:
+                wage = int(lb)
+            else:
+                wage = (int(lb) + int(ub)) / 2
+        except:
+            return
+
+        # check if something is wrong
+        wage = 35000 if wage == 0 else wage
+
+        if currency != "GBP":
+            wage = cconv.convert(wage,currency,"GBP")
+
+        if period is None or period == "":
+            if wage < 1000:
+                #assume weekly, this might be very false though, could be daily.
+                wage *= 52
+            elif wage < 10000:
+                #similar for monthly
+                wage *= 12
+        else:
+            if period == "monthly":
+                wage = wage * 12
+            elif period == "weekly":
+                wage =  wage * 52
+            elif period == "daily":
+                wage =  wage * 220
+        self.salary = wage
 
     def get_word_rank(self):
         #5-bit output
@@ -347,9 +382,6 @@ class Job(models.Model):
                 if term in d:
                     rank += score
 
-        if all([x not in d for x in ["graduate","junior","placement","year in industry","entry-level","entry level"]]):
-            rank -= 30
-
         #Normalise Rank
         sigmoid_midpoint = 85
         sigmoid_steepness = 0.035
@@ -362,31 +394,90 @@ class Job(models.Model):
 
     def get_wage_rank(self):
         # 3 bits
-        if self.salary == 0:
-            adjusted_salary = 10000
-        else:
-            adjusted_salary = min(self.salary,65000) - 25000
+        adjusted_salary = min(self.salary,65000) - 20000
         adjusted_salary = (adjusted_salary // 5000) - 1
-        return adjusted_salary
+        return max(0, min(7, adjusted_salary))
+
+    def get_entry_level_rank(self):
+        #2 bits
+        rank = 0
+        if self.is_placement():
+            rank += 2
+        else:
+            d = self.description.lower() + " " + self.title.lower()
+            if any([x in d for x in Terms.graduate]):
+                rank += 1
+        return rank
+
+
 
 
     def get_rank(self):
-        self.set_placement()
         # Running Tally: 0
         rank = self.get_wage_rank()
         # Running Tally: 3
         distance = self.get_distance_rank()
-        country = distance >> 6
-        if self.placement:
-            if country != 3:
-                distance = 0
         rank += distance << 3
         #Running Tally:11
-        rank += self.get_word_rank() << 11
+        rank += self.get_word_rank() << 10
         #running tally: 16
-        if self.placement:
-            rank += 1 << 16
+        rank += self.get_entry_level_rank() << 15
+        #running total: 17
         return rank
+
+    def evaluate(self,save=False):
+        def valid():
+            self.rank = self.get_rank()
+            self.status = "E"
+        def invalid():
+            self.status = "X"
+            self.description_html = ""
+            return
+
+        if date.today() > self.deadline:
+            invalid()
+        if self.passes_blacklist(True):
+            if self.is_placement():
+                country = self.get_distance_rank() >> 5
+                if country != 3:
+                    invalid()
+                else:
+                    valid()
+            else:
+                valid()
+        else:
+            invalid()
+
+    def quick_check(self):
+        if not self.passes_blacklist():
+            return False
+        else:
+            self.description = self.description[:-3]# This removes any ellipses at the end of the file.
+            if Job.objects.filter(url=self.url).count() > 0:
+                return False
+            elif Job.objects.filter(description__contains=self.description).count() > 0:
+                return False
+            else:
+                return True
+
+
+    def passes_blacklist(self, complete_data=False):
+        passes = True
+        for term in Terms.blacklist:
+            if term in self.title.lower():
+                passes = False
+                break
+        for term in Terms.super_blacklist:
+            if term in self.title.lower() or term in self.description.lower():
+                passes = False
+                break
+        if complete_data:
+            passes = False
+            for term in Terms.whitelist:
+                if term in self.description.lower():
+                    passes = True
+                    break
+        return passes
 
     def __eq__(self, other):
         if self.url == other.url:
@@ -415,40 +506,4 @@ class Job(models.Model):
         return hash(hashable_string)
     def __str__(self):
         return self.title + " | " + str(self.company) + " | " + self.description[:144] + "…"
-
-    def quick_check(self):
-        print(self.title)
-        if not self.passes_blacklist():
-            print("BLACKLIST")
-            return False
-        else:
-            self.description = self.description[:-3]# This removes any ellipses at the end of the file.
-            if Job.objects.filter(url=self.url).count() > 0:
-                print("URL FOUND")
-                return False
-            elif Job.objects.filter(description__contains=self.description).count() > 0:
-                print("DESCRIPTION FOUND")
-                return False
-            else:
-                print("OK")
-                return True
-
-
-    def passes_blacklist(self,full_description=False):
-        passes = True
-        for term in Terms.blacklist:
-            if term in self.title.lower():
-                passes = False
-                break
-        for term in Terms.super_blacklist:
-            if term in self.title.lower() or term in self.description.lower():
-                passes = False
-                break
-        if full_description:
-            passes = False
-            for term in Terms.whitelist:
-                if term in self.description.lower():
-                    passes = True
-                    break
-        return passes
 
