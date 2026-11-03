@@ -8,11 +8,11 @@ GEMINI_KEY = SECRETS["gemini"]
 gemini_endpoint = OpenAI(api_key=GEMINI_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/",timeout=60)
 groq_endpoint = OpenAI(api_key=SECRETS["groq"], base_url="https://api.groq.com/openai/v1",timeout=60)
 
-models = [{"name":"gemini-3.8-flash","endpoint":gemini_endpoint,"rate_limit":5,"reasoning_effort":"minimal"},
-          {"name":"gemini-3.6-flash","endpoint":gemini_endpoint,"rate_limit":5,"reasoning_effort":"minimal"},
+models = [{"name":"gemini-3.6-flash","endpoint":gemini_endpoint,"rate_limit":5,"reasoning_effort":"minimal"},
           {"name":"openai/gpt-oss-20b","endpoint":groq_endpoint,"rate_limit":30,"reasoning_effort":"low"},
           {"name":"openai/gpt-oss-120b","endpoint":groq_endpoint,"rate_limit":30,"reasoning_effort":"low"},
           {"name":"qwen/qwen3.8-27b","endpoint":groq_endpoint,"rate_limit":30,"reasoning_effort":"none"},
+          {"name":"gemini-3.8-flash","endpoint":gemini_endpoint,"rate_limit":5,"reasoning_effort":"low"},
           {"name":"gemini-3.5-flash-lite","endpoint":gemini_endpoint,"rate_limit":15,"reasoning_effort":"minimal"},
           {"name":"gemini-3.1-flash-lite","endpoint":gemini_endpoint,"rate_limit":15,"reasoning_effort":"minimal"},
           {"name":"gemini-2.5-flash","endpoint":gemini_endpoint,"rate_limit":15,"reasoning_effort":"minimal"},
@@ -48,7 +48,6 @@ def prompt(content, prompt_type="company", arg_prompt=""):
             dev_prompt = ""
 
     while len(models) > 0:
-        global last_polled
         retrys = 2
         complete = False
         while retrys > 0:
@@ -68,8 +67,10 @@ def prompt(content, prompt_type="company", arg_prompt=""):
                 complete=True
                 break
             except RateLimitError:
+                print("Rate Limit / Quota!")
                 break
-            except:
+            except Exception as e:
+                print(e)
                 retrys -= 1
         if complete:
             break

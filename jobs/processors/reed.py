@@ -32,8 +32,6 @@ class Reed(Processor):
                     j = Job()
                     j.title = l["jobTitle"]
                     j.set_salary(l["minimumSalary"],l["maximumSalary"])
-                    if l["minimumSalary"]:
-                        j.salary = (l["minimumSalary"] + l["maximumSalary"]) / 2
                     j.deadline = reformat_date(l["expirationDate"])
                     j.posted = reformat_date(l["date"])
                     j.description = l["jobDescription"]

@@ -323,7 +323,7 @@ class Job(models.Model):
     rank = models.FloatField(default=RANK_DEFAULT,blank=False)
     status = models.CharField(max_length=2, choices=STATUS_CHOICES, default="N",blank=False)
     salary = models.PositiveIntegerField(default=35000,blank=False)
-    deadline = models.DateField(blank=True)
+    deadline = models.DateField(blank=True, default="3000-01-01")
     posted = models.DateField(blank=True)
     company = models.ForeignKey(Company, on_delete=models.SET_DEFAULT,default=get_unknown_company,blank=False)
     location = models.ForeignKey(PreciseLocation, on_delete=models.SET_DEFAULT,default=get_unknown_precise_location,blank=False)
