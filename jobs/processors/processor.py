@@ -1,6 +1,7 @@
 from jobs.models import *
+from time import time
 class Processor:
-    # Interface for different methods of aquireing jobs!
+    # Interface for different methods of getting jobs!
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
 
@@ -24,12 +25,23 @@ class Processor:
 
         "Upgrade-Insecure-Requests": "1",
     }
+    
+    unevaluated_jobs_cache = {"count":Job.objects.filter(status="N").count(),"last_polled":time(),"remaining_checks":100}
+    @staticmethod
+    def check_job_cache():
+        timeout = 120
+        if Processor.unevaluated_jobs_cache["remaining_checks"] <= 0:
+            Processor.unevaluated_jobs_cache = {"count":Job.objects.filter(status="N").count(),"last_polled":time(),"remaining_checks":100}
+        elif time()-Processor.unevaluated_jobs_cache["last_polled"] > timeout:
+            Processor.unevaluated_jobs_cache = {"count":Job.objects.filter(status="N").count(),"last_polled":time(),"remaining_checks":100}
+        return Processor.unevaluated_jobs_cache["count"]
 
     @staticmethod
-    def discover(search_term:str,limit=200) -> None:
+    def discover(search_term:str,limit:int=200,level:str="") -> int:
         # Discover should be the main scraping operation:
         # For some search term, look over all job listings (up to limit) for matches to this criteria
         # Save those jobs as complete / incomplete items to the database
+        # Return number of jobs added
         pass
     @staticmethod
     def evaluate(job:Job) -> tuple[bool,str]: #

@@ -6,15 +6,16 @@
 </head>
 <body>
 <h1><a href="{{url}}">{{title}}</a></h1>
-<a href="https://www.google.com/maps/search/{{location}}">{{location}}</a>
+<a href="https://www.google.com/maps/search/{{location}}">{{precise_location}}</a>
+<p>location</p>
 <h2><a href="{{company_url}}">{{company}}</a> via {{site}}</h2>
 <p>{{company_summary | safe}}</p>
 <h2>Job Description:</h2>
 <p>{{description | safe}}</p>
 <ul>
-    <li style="margin:1em"><a href="/dismiss/{{id}}/{{next}}">Dismiss</a></li>
+    <li style="margin:1em"><a href="/dismiss/{{id}}">Dismiss</a></li>
     <li style="margin:1em"><a href="/view/{{next}}">Ignore</a></li>
-    <li style="margin:1em"><a href="/apply/{{id}}/{{next}}">Apply</a></li>
+    <li style="margin:1em"><a href="/apply/{{id}}">Apply</a></li>
 </ul>
 </body>
 </html>

@@ -2,10 +2,14 @@
 #https://public-api.org/api/854/devitjobs-uk
 #https://theirstack.com/en/docs/api-reference#tag/jobs/POST/v1/jobs/search
 #https://www.peopledatalabs.com/job-posting-data
+
+
 import math
+import re
 from datetime import date
 
 from django.db import models
+from django.db.utils import IntegrityError
 
 from JobRanker.llm_manager import prompt
 import jobs.maps as maps
@@ -124,24 +128,26 @@ class Company(models.Model):
     name = models.CharField(max_length=255,blank=False,unique=True)
     summary = models.CharField(blank=False)
     url = models.URLField(blank=True)
+    NONAZ = re.compile("[^a-zA-Z0-9 ]")
 
     @staticmethod
     def fetch(name):
         name = name.lower()
-        if name == "" or name.lower() in Company.BLACKLIST:
+        name = re.sub(Company.NONAZ,'',name)
+        if name == "" or name in Company.BLACKLIST:
             return Company.objects.get(name="Broken Company :(")
         else:
             try:
                 existing_company = Company.objects.get(name=name)
                 return existing_company
-            except:
+            except models.ObjectDoesNotExist:
                 c = Company()
                 c.name = name
                 company_info = prompt(c.name)
                 company_info = company_info.split("|")
                 c.summary = company_info[0]
                 try:
-                    c.url = company_info[1].replace(" ", "")
+                    c.url = company_info[1].strip()
                 except:
                     company_info = prompt("COMPANY_NAME:\n" + c.name)
                     company_info = company_info.split("|")
@@ -313,11 +319,11 @@ def get_unknown_precise_location(id=True):
 
 class Job(models.Model):
     RANK_DEFAULT = -1000
-    STATUS_CHOICES = {"A":"Applied","I":"Manually Ignored","X":"Not Applicable","E":"Evaluated","N":"Not Scraped for Details"}
+    STATUS_CHOICES = {"A":"Applied","I":"Intending to Apply","M":"Manually Ignored","E":"Evaluated","N":"Not Scraped for Details","X":"Not Applicable",}
 
     title = models.CharField(max_length=255,blank=False)
-    description = models.CharField(max_length=255,blank=False)
-    description_html = models.CharField(max_length=255, blank=True)
+    description = models.CharField(blank=False)
+    description_html = models.CharField(blank=True)
     scrape_method = models.CharField(max_length=20,blank=False)
     url =  models.URLField(blank=False)
     rank = models.FloatField(default=RANK_DEFAULT,blank=False)

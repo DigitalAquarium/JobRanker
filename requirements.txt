@@ -8,3 +8,4 @@ playwright
 flask[async]
 requests
 BeautifulSoup4
+ddgs

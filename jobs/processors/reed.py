@@ -11,14 +11,16 @@ class Reed(Processor):
     endpoint = "https://www.reed.co.uk/api/1.0/"
 
     @staticmethod
-    def discover(search_term,limit=500):
-        max_pages = limit // 100
+    def discover(search_term,limit=500,level=""):
+        tally = 0
+        max_pages = limit // 100 + 1
         def reformat_date(date):
             date = date.split("/")
             date.reverse()
             return "-".join(date)
 
         page = 0
+        search_term += " " + level
         keywords = search_term.replace(" ","+")
         while page < max_pages:
             Reed.l.wait()
@@ -26,8 +28,6 @@ class Reed(Processor):
             listings = json.loads(r.text)
             print("Total:",listings["totalResults"],"this:",len(listings["results"]))
             for l in listings["results"]:
-                if l["employerName"].lower() in Company.BLACKLIST:
-                    print("emplyer be blacklisted")
                 if l["employerName"].lower() not in Company.BLACKLIST:
                     j = Job()
                     j.title = l["jobTitle"]
@@ -43,9 +43,15 @@ class Reed(Processor):
                         print(j)
                         j.rank = j.get_word_rank()
                         j.save()
+                        tally += 1
             page += 1
+            if page == max_pages:
+                if tally < limit * 3/4:
+                    print("Searching More stuff!")
+                    max_pages += 1
             if page*100 > listings["totalResults"]:
                 break
+        return tally
 
     @staticmethod
     def evaluate(job) -> tuple[bool,str]:
@@ -63,6 +69,6 @@ class Reed(Processor):
             print(job.title,"-",job.location,"-","£"+str(job.salary),"|",job.status,job.rank)
             return True, ""
         except:
-            return False, "crawler"
+            return False, "scraper"
         #job.save()
 

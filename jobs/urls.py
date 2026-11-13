@@ -5,5 +5,5 @@ from django.contrib.sitemaps.views import sitemap
 from jobs.models import *
 
 urlpatterns = [
-    path('', views.test_view, name='index')
+    path('', views.rank_view, name='index')
     ]
