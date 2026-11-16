@@ -1,17 +1,18 @@
+import json
 import random
 from time import sleep
 
-from JobRanker.settings import SECRETS
-from JobRanker.rate_limit_manager import Limiter
-from .processor import Processor
-import jobs.processors.scraper as scraper
-from bs4 import BeautifulSoup
-from jobs.models import *
 import requests
-import json
+from bs4 import BeautifulSoup
+
+from JobRanker.settings import SECRETS
+from jobs.models import *
+from .processor import Processor
+
 
 class Adzuna(Processor):
     #l = Limiter(2000,"rph")
+    browser = None
 
     @staticmethod
     def discover(search_term,limit=50,level=""):
@@ -31,7 +32,7 @@ class Adzuna(Processor):
                        f"&what_or={search_term.replace(' ', '%20')}" \
                        f"&what_exclude=Senior" \
                        f"&salary_include_unknown=1"\
-                       f"{category}" # THIS MAY NOT ALWAYS BE DESIRABLE
+                       f"{category}"
             # It'll only ever send max 50 per page.
             sleep(random.uniform(1, 3))
             response = requests.get(api_call)
@@ -50,12 +51,10 @@ class Adzuna(Processor):
                     url = listing["redirect_url"]
                     url = url.split("?")
                     if url[0].split("/")[4] == "land":
-                        data = url[1].split("&")
-                        for d in data:
-                            #https://www.adzuna.co.uk/jobs/land/ad/5944891607utm_source=1ef98434&v=144C4D970F28C7B98BCAC5AA3D5000C5BBCE6ED2
-                            if d[:2] == "v=":
-                                url = url[0] + "?" + d
-                                break
+                        url = url.split("?")
+                        job_id = url[0].split("/")
+                        job_id = job_id[-1]
+                        url = "https://www.adzuna.co.uk/jobs/details/" + job_id
                     else:
                         url = url[0]
                     job.url = url
@@ -76,23 +75,17 @@ class Adzuna(Processor):
 
     @staticmethod
     def evaluate(job) -> tuple[bool,str]:
-        #Created With Heavy Help From ChatGPT
-        url = job.url
-        if url.split("/")[4] == "land": # Redirect URL
-            if scraper.total_remaining > Adzuna.check_job_cache():
-                return False,"scraper"
-            else:
-                url = url.split("?")
-                job_id = url[0].split("/")
-                job_id = job_id[-1]
-                url = "https://www.adzuna.co.uk/jobs/details/"+job_id
-
-
         sleep(0.2 + random.random()/3 + random.betavariate(1,1)/3)
+        print(job.url)
+        if "land/ad" in job.url:
+            url = job.url.split("?")
+            job_id = url[0].split("/")
+            job_id = job_id[-1]
+            job.url = "https://www.adzuna.co.uk/jobs/details/" + job_id
         with (requests.Session() as session):
             session.headers.update(Processor.headers)
             response = session.get(
-                url,
+                job.url,
                 timeout=(10, 30),
                 allow_redirects=True
             )
@@ -109,7 +102,7 @@ class Adzuna(Processor):
         soup = BeautifulSoup(html, "html.parser")
 
         details = None
-
+        # Created With Heavy Help From ChatGPT
         # Find the embedded az_details JavaScript object
         for script in soup.find_all("script"):
 
@@ -153,6 +146,3 @@ class Adzuna(Processor):
         job.evaluate()
         print(job.title,"-",str(job.location).split(" | ")[1],"-","£"+str(job.salary),"|",job.status,job.rank)
         return True, ""
-
-
-

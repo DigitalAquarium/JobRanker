@@ -25,12 +25,11 @@ def discover():
 def evaluate():
     limit = 100
     jobs = []
-    print(Job.objects.filter(status="N").order_by("-rank"))
     for j in Job.objects.filter(status="N").order_by("-rank"):
         processors[j.scrape_method].evaluate(j)
         jobs.append(j)
         limit -= 1
         if limit <= 0:
             break
-    Job.objects.bulk_update(jobs, ["title", "description", "description_html", "rank", "status", "salary", "deadline",
+    Job.objects.bulk_update(jobs, ["title","url", "description", "description_html", "rank", "status", "salary", "deadline",
                                    "posted", "location", "company"])

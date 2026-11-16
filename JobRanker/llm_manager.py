@@ -1,20 +1,23 @@
 #from os import environ
+from datetime import date
+from typing import Literal, Optional
+
 from openai import OpenAI, RateLimitError
 from JobRanker.settings import SECRETS
 from JobRanker.rate_limit_manager import Limiter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 GEMINI_KEY = SECRETS["gemini"]
 
 gemini_endpoint = OpenAI(api_key=GEMINI_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/",timeout=60)
 groq_endpoint = OpenAI(api_key=SECRETS["groq"], base_url="https://api.groq.com/openai/v1",timeout=60)
 
-models = [{"name":"gemini-3.6-flash","endpoint":gemini_endpoint,"rate_limit":5,"reasoning_effort":"minimal"},
+models = [{"name":"gemini-3.5-flash-lite","endpoint":gemini_endpoint,"rate_limit":15,"reasoning_effort":"minimal"},
           {"name":"openai/gpt-oss-20b","endpoint":groq_endpoint,"rate_limit":30,"reasoning_effort":"low"},
+          {"name":"gemini-3.6-flash","endpoint":gemini_endpoint,"rate_limit":5,"reasoning_effort":"minimal"},
           {"name":"openai/gpt-oss-120b","endpoint":groq_endpoint,"rate_limit":30,"reasoning_effort":"low"},
           {"name":"qwen/qwen3.8-27b","endpoint":groq_endpoint,"rate_limit":30,"reasoning_effort":"none"},
           {"name":"gemini-3.8-flash","endpoint":gemini_endpoint,"rate_limit":5,"reasoning_effort":"low"},
-          {"name":"gemini-3.5-flash-lite","endpoint":gemini_endpoint,"rate_limit":15,"reasoning_effort":"minimal"},
           {"name":"gemini-3.1-flash-lite","endpoint":gemini_endpoint,"rate_limit":15,"reasoning_effort":"minimal"},
           {"name":"gemini-2.5-flash","endpoint":gemini_endpoint,"rate_limit":15,"reasoning_effort":"minimal"},
           {"name": "gemini-2.5-flash-lite", "endpoint": gemini_endpoint, "rate_limit": 15, "reasoning_effort": "none"},
@@ -23,6 +26,20 @@ models = [{"name":"gemini-3.6-flash","endpoint":gemini_endpoint,"rate_limit":5,"
 model = models.pop(0)
 l = Limiter(model["rate_limit"])
 
+class SalarySchema(BaseModel):
+    lb:Optional[int] = Field(description="If salary is given in a range, this should be the lower bound, otherwise salary value. default to 35,000 if not found")
+    ub: Optional[int] = Field(description="upper bound for salary, None if single value")
+    currency:Optional[str] = Field(default="GBP",description="Three-letter uppercase ISO currency code (e.g. GBP, USD, EUR, SEK). Assume GBP if not found")
+    period: Optional[Literal["hourly", "daily", "weekly", "monthly", "yearly"]] = Field(description="period of pay, if not found assume a sensible value for a graduate based on the salary number. most likely yearly for UK-based roles")
+
+class JobSchema(BaseModel):
+    job_title:Optional[str] = Field(description="Exact role title, or null if not a job posting.")
+    job_description:Optional[str] = Field(description="Clean summary/body of the role, or null if missing.")
+    salary: Optional[SalarySchema]
+    deadline: Optional[date] = Field(description="Application Closing Date posted in YYYY-MM-DD format, or null if not stated.")
+    posted: Optional[date] = Field(description="Date posted in YYYY-MM-DD format, or null if not stated.")
+    company_name:Optional[str] = Field(description="Hiring employer name, or null if unknown.")
+    location_name: Optional[str] = Field(description="job's location. choose 1 closest to london. as precise as possible otherwise City/country or 'Remote'. null if unspecified.")
 
 
 def prompt(content, prompt_type="company", arg_prompt=""):
@@ -50,8 +67,17 @@ def prompt(content, prompt_type="company", arg_prompt=""):
         case "custom":
             dev_prompt = arg_prompt
         case "scrape_html":
-            dev_prompt = arg_prompt
-            kwargs = {""}
+            dev_prompt = "Your job is to read the text content of a jobs listing webpage and digest the contents into the storable format provided."
+            kwargs = {"model":model["name"],
+                        "reasoning_effort":model["reasoning_effort"],
+                        "temperature":0,
+                        "messages":[
+                            {"role": "system", "content": dev_prompt},
+                            {"role": "user", "content": content}
+                        ],
+                      "response_format":JobSchema,
+                      }
+            flag=False
         case _:
             dev_prompt = ""
 
@@ -60,7 +86,7 @@ def prompt(content, prompt_type="company", arg_prompt=""):
         complete = False
         while retrys > 0:
             l.wait()
-            print("Asking",model["name"],"About:", content)
+            print("Asking",model["name"],"About:", content if len(content) < 150 else content[:144])
             try:
                 if flag:
                     response = model["endpoint"].chat.completions.create(
@@ -74,7 +100,7 @@ def prompt(content, prompt_type="company", arg_prompt=""):
                         ]
                     )
                 else:
-                    response = model["endpoint"].chat.completions.create(**kwargs)
+                    response = model["endpoint"].chat.completions.parse(**kwargs)
                 complete=True
                 break
             except RateLimitError:

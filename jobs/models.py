@@ -7,13 +7,14 @@
 import math
 import re
 from datetime import date
+from typing import Any
 
-from django.db import models
-from django.db.utils import IntegrityError
-
-from JobRanker.llm_manager import prompt
-import jobs.maps as maps
 from currency_converter import CurrencyConverter
+from django.db import models
+
+import jobs.maps as maps
+from JobRanker.llm_manager import prompt
+
 cconv = CurrencyConverter()
 class Terms:
     blacklist = ["senior", "associate", "lead", "head of", "principal", "director", "vp "," vp", "mid level", "founding", "sr.", "chief" " ii", " iv","mid level","mid-level","founding","sr.","chief", "staff",] #These terms should not appear in the title
@@ -158,10 +159,11 @@ class Company(models.Model):
                 c.save()
                 return c
 
-    def __eq__(self, other):
-        if other is None:
+    def __eq__(self, other:Any):
+        if other is None or not isinstance(other, Company):
             return False
-        return self.name == other.name
+        else:
+            return self.name == other.name
     def __str__(self):
         return self.name
 
@@ -374,6 +376,8 @@ class Job(models.Model):
                 wage =  wage * 52
             elif period == "daily":
                 wage =  wage * 220
+            elif period == "hourly":
+                wage *= 1750
         self.salary = wage
 
     def get_word_rank(self):
@@ -486,7 +490,25 @@ class Job(models.Model):
                     break
         return passes
 
-    def __eq__(self, other):
+    def clone(self):
+        j = Job()
+        j.title = self.title
+        j.description = self.description
+        j.company = self.company
+        j.description_html = self.description_html
+        j.location = self.location
+        j.posted = self.posted
+        j.deadline = self.deadline
+        j.salary = self.salary
+        j.url = self.url
+        j.scrape_method = self.scrape_method
+        j.status = self.status
+        j.rank = self.rank
+        return j
+
+    def __eq__(self, other:Any):
+        if other is None or not isinstance(other,Job):
+            return False
         if self.url == other.url:
             return True
         if self.title != other.title:

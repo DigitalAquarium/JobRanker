@@ -10,15 +10,13 @@ from jobs.models import *
 from jobs.models import Company, Location
 from jobs.processors.adzuna import Adzuna
 from jobs.processors.reed import Reed
+from jobs.processors.scraper import Scraper
+
 
 # Create your views here.
 def test_view(request):
-    #manager.discover()
     manager.evaluate()
-    print("discovery ended")
-    #for j in Job.objects.all():
-
-    return None
+    return "hello :)"
 
 def rank_view(request,pk=0):
     if pk:
@@ -40,12 +38,6 @@ def rank_view(request,pk=0):
         next_job.status = "X"
         next_job.save()
         job = Job.objects.filter(status="E", rank__lt=job.rank).order_by("-rank")[0]
-
-    for c in Company.objects.all():
-        if "*" in c.summary:
-            c.summary = llm_manager.prompt(c.name).split("|")[0]
-            c.save()
-
 
     data = {
         "id":job.id,
