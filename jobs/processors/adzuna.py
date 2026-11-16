@@ -41,7 +41,10 @@ class Adzuna(Processor):
                     job = Job()
                     job.title = listing["title"]
                     job.description = listing["description"]
-                    job.set_salary(listing["salary_min"], listing["salary_max"])
+                    try:
+                        job.set_salary(listing["salary_min"], listing["salary_max"])
+                    except:
+                        job.set_salary(listing["salary_min"])
                     job.posted = listing["created"][:10]
 
                     url = listing["redirect_url"]
@@ -93,7 +96,12 @@ class Adzuna(Processor):
                 timeout=(10, 30),
                 allow_redirects=True
             )
-            if response.status_code != 200:
+            if response.status_code in [410,404]:
+                print("410/404, Job gone")
+                job.status = "X"
+                job.save()
+                return True,""
+            elif response.status_code != 200:
                 print("Status:", response.status_code)
                 return False,"scraper"
             html = response.text

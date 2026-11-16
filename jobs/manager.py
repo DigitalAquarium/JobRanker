@@ -34,4 +34,3 @@ def evaluate():
             break
     Job.objects.bulk_update(jobs, ["title", "description", "description_html", "rank", "status", "salary", "deadline",
                                    "posted", "location", "company"])
-    print("discovery ended")

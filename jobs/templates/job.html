@@ -1,3 +1,26 @@
+<style>
+    body{
+        font-family: helvetica,arial,serif;
+        margin: 64px 200px;
+    }
+    #grid{
+        display: grid;
+        grid-template-columns: auto auto;
+        justify-items: center;
+    }
+    #THE-header{
+        text-align: center;
+    }
+    #nav{
+        display:flex;
+        justify-content: center;
+    }
+    #job-description{
+        border: black solid;
+        border-left: 0;
+        border-right: 0;
+    }
+</style>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,17 +28,24 @@
     <title>{{title}} - JobRanker</title>
 </head>
 <body>
-<h1><a href="{{url}}">{{title}}</a></h1>
-<a href="https://www.google.com/maps/search/{{location}}">{{precise_location}}</a>
-<p>location</p>
-<h2><a href="{{company_url}}">{{company}}</a> via {{site}}</h2>
-<p>{{company_summary | safe}}</p>
+<h1 id="THE-header"><a href="{{url}}">{{title}} #{{id}}</a></h1>
+<div id="grid">
+    <a href="https://www.google.com/maps/search/{{precise_location}}">{{precise_location|capfirst}}</a>
+    <span>{%if has_posted %}Posted: {{posted|date:"d-n-Y"}}{%endif%}</span>
+    <span>{%if location != precise_location %}<a href="https://www.google.com/maps/search/{{precise_location}}">{{location|capfirst}}</a>{%endif%}</span>
+    <span>{%if has_deadline %}Deadline: {{deadline}}{%endif%}</span>
+    <span>£{{salary}}</span>
+</div>
+<h2><a href="{{company_url}}">{{company}}</a></h2>
+<p>{{company_summary}}</p>
+<div id="job-description">
 <h2>Job Description:</h2>
 <p>{{description | safe}}</p>
-<ul>
-    <li style="margin:1em"><a href="/dismiss/{{id}}">Dismiss</a></li>
-    <li style="margin:1em"><a href="/view/{{next}}">Ignore</a></li>
-    <li style="margin:1em"><a href="/apply/{{id}}">Apply</a></li>
+</div>
+<ul id="nav">
+    <li style="margin:1em"><a href="{%url 'ignore' id %}">Dismiss</a></li>
+    <li style="margin:1em"><a href="{%url 'rank_with_id' next %}">Next</a></li>
+    <li style="margin:1em"><a href="{%url 'intend_apply' id %}">Apply</a></li>
 </ul>
 </body>
 </html>

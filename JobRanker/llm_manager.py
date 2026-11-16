@@ -2,6 +2,7 @@
 from openai import OpenAI, RateLimitError
 from JobRanker.settings import SECRETS
 from JobRanker.rate_limit_manager import Limiter
+from pydantic import BaseModel
 
 GEMINI_KEY = SECRETS["gemini"]
 
@@ -22,17 +23,21 @@ models = [{"name":"gemini-3.6-flash","endpoint":gemini_endpoint,"rate_limit":5,"
 model = models.pop(0)
 l = Limiter(model["rate_limit"])
 
+
+
 def prompt(content, prompt_type="company", arg_prompt=""):
     global model
+    flag = True
     match prompt_type:
         case "company":
             dev_prompt = "You are an assistant for a user who is currently searching for work. Your role is to take a " \
-                         "user-provided company name in the IT/Software/Tech sector (that operates in the UK) and " \
+                         "user-provided organisation (company or civil) name in the IT/Software/Tech sector (should operate in the UK, but may not) and " \
                          "provide a summary of it. The first section should cover the company's main product or " \
-                         "service, the second section should be the companies core values and culture. After this you " \
+                         "service, then separate with a newline (\\n) the second section should be the companies core values and culture."\
+                         "DO NOT include markdown, headers or metadata in the response. simply the two statements separated by a newline. After this you " \
                          "MUST include a pipe character (|) followed by the url of the main page of the company's " \
                          "website. Only use the one pipe character to separate the description from the website DO " \
-                         "NOT use any others"
+                         "NOT use any others."
         case "location":
             dev_prompt = "Your job is to take a user give place-name or post-code in the united kingdom and convert it into JUST the " \
                          "town/city (or county if not possible) this place is in to reduce out the total number of possible locations to simplify " \
@@ -44,6 +49,9 @@ def prompt(content, prompt_type="company", arg_prompt=""):
                          "After this, you MUST produce a pipe character (|) followed by a single 'bit' 1/0. The value of this is true if the output is the name of a country, and false otherwise."
         case "custom":
             dev_prompt = arg_prompt
+        case "scrape_html":
+            dev_prompt = arg_prompt
+            kwargs = {""}
         case _:
             dev_prompt = ""
 
@@ -54,16 +62,19 @@ def prompt(content, prompt_type="company", arg_prompt=""):
             l.wait()
             print("Asking",model["name"],"About:", content)
             try:
-                response = model["endpoint"].chat.completions.create(
-                    model=model["name"],
-                    reasoning_effort=model["reasoning_effort"],
-                    temperature=0,
-                    stream=False,
-                    messages=[
-                        {"role": "system", "content": dev_prompt},
-                        {"role": "user", "content": content}
-                    ]
-                )
+                if flag:
+                    response = model["endpoint"].chat.completions.create(
+                        model=model["name"],
+                        reasoning_effort=model["reasoning_effort"],
+                        temperature=0,
+                        stream=False,
+                        messages=[
+                            {"role": "system", "content": dev_prompt},
+                            {"role": "user", "content": content}
+                        ]
+                    )
+                else:
+                    response = model["endpoint"].chat.completions.create(**kwargs)
                 complete=True
                 break
             except RateLimitError:

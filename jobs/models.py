@@ -319,6 +319,7 @@ def get_unknown_precise_location(id=True):
 
 class Job(models.Model):
     RANK_DEFAULT = -1000
+    DATE_DEFAULT = date(3000,1,1)
     STATUS_CHOICES = {"A":"Applied","I":"Intending to Apply","M":"Manually Ignored","E":"Evaluated","N":"Not Scraped for Details","X":"Not Applicable",}
 
     title = models.CharField(max_length=255,blank=False)
@@ -329,7 +330,7 @@ class Job(models.Model):
     rank = models.FloatField(default=RANK_DEFAULT,blank=False)
     status = models.CharField(max_length=2, choices=STATUS_CHOICES, default="N",blank=False)
     salary = models.PositiveIntegerField(default=35000,blank=False)
-    deadline = models.DateField(blank=True, default="3000-01-01")
+    deadline = models.DateField(blank=True, default=DATE_DEFAULT)
     posted = models.DateField(blank=True)
     company = models.ForeignKey(Company, on_delete=models.SET_DEFAULT,default=get_unknown_company,blank=False)
     location = models.ForeignKey(PreciseLocation, on_delete=models.SET_DEFAULT,default=get_unknown_precise_location,blank=False)
@@ -513,3 +514,5 @@ class Job(models.Model):
     def __str__(self):
         return self.title + " | " + str(self.company) + " | " + self.description[:144] + "…"
 
+
+    #class BulletPoint():
